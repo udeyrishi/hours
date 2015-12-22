@@ -6,6 +6,7 @@ from datetime import datetime
 
 SETUP_DIR = '.hour_logger'
 CONFIG_FILE = 'config.json'
+END_LINE = '--------------------------------------------\n'
 
 class Mode:
     __metaclass__ = abc.ABCMeta
@@ -127,15 +128,17 @@ class StartMode(LogMode):
 
     def run(self):
         last_line = self.get_lastline()
-        if last_line is not None and not last_line.startswith('Duration: '):
+
+        if last_line is None or last_line == END_LINE:
+            logfile_path = self.get_logfile_path()
+            with open(logfile_path, 'a+') as logfile:
+                logfile.write('Start: ' + time.strftime("%Y-%m-%d %H:%M:%S") + '\n')
+        else:
             if last_line.startswith('Start: '):
                 raise ValueError('Previous shift not ended yet.')
             else:
                 raise ValueError('Log file corrupted. Last line is not recognizable.')
 
-        logfile_path = self.get_logfile_path()
-        with open(logfile_path, 'a+') as logfile:
-            logfile.write('Start: ' + time.strftime("%Y-%m-%d %H:%M:%S") + '\n')
 
 class EndMode(LogMode):
 
@@ -144,21 +147,22 @@ class EndMode(LogMode):
 
         if last_line is None:
             raise ValueError('No shift time started yet.')
-        elif not last_line.startswith('Start: '):
-            if last_line.startswith('Duration: '):
-                raise ValueError('No shift time started yet.')
-            else:
-                raise ValueError('Log file corrupted. Last line is not recognizable.')
+        elif last_line.startswith('Start: '):
+            starttime = datetime.strptime(last_line.strip('Start: ').strip(), "%Y-%m-%d %H:%M:%S")
+            endtime = time.strftime("%Y-%m-%d %H:%M:%S")
+            duration = (datetime.strptime(endtime, "%Y-%m-%d %H:%M:%S") - starttime).seconds / 3600
 
+            with open(self.get_logfile_path(), 'a+') as logfile:
+                logfile.write('End: ' + endtime + '\n')
+                logfile.write('Duration: ' + str(duration) + ' hours \n')
+                config = Configuration().get_configuration()
+                if 'rate' in config:
+                    rate = float(config['rate'])
+                    money = rate*duration
+                    logfile.write('Money earned: $%.2f\n' %money)
 
-        starttime = datetime.strptime(last_line.strip('Start: ').strip(), "%Y-%m-%d %H:%M:%S")
-        endtime = time.strftime("%Y-%m-%d %H:%M:%S")
-        duration = datetime.strptime(endtime, "%Y-%m-%d %H:%M:%S") - starttime
-
-        with open(self.get_logfile_path(), 'a+') as logfile:
-            logfile.write('End: ' + endtime + '\n')
-            logfile.write('Duration: ' + str(duration.seconds / 3600) + ' hours \n\n')
-
-
-
-
+                logfile.write(END_LINE + '\n')
+        elif last_line == END_LINE:
+            raise ValueError('No shift time started yet.')
+        else:
+            raise ValueError('Log file corrupted. Last line is not recognizable.')
