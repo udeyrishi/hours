@@ -154,7 +154,7 @@ class EndMode(LogMode):
 
             with open(self.get_logfile_path(), 'a+') as logfile:
                 logfile.write('End: ' + endtime + '\n')
-                logfile.write('Duration: ' + str(duration) + ' hours \n')
+                logfile.write('Duration: ' + "%.4f" %duration + ' hours \n')
                 config = Configuration().get_configuration()
                 if 'rate' in config:
                     rate = float(config['rate'])
