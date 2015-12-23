@@ -4,9 +4,9 @@ import json
 import time
 from datetime import datetime
 
-SETUP_DIR = '/usr/local/bin/hours'
+SETUP_DIR = '/usr/local/bin/hours_data'
 CONFIG_FILE = 'config.json'
-END_LINE = '--------------------------------------------\n'
+END_LINE = '--------------------------------------------'
 
 
 class Mode:
@@ -85,21 +85,22 @@ def get_wage_rate():
     return float(config['rate'])
 
 
-def get_last_line():
+def get_last_non_payment_line():
     logfile_path = get_logfile_path()
 
     with open(logfile_path, 'a+') as logfile:
         logfile.seek(0)
         last_line = None
         for line in logfile:
-            if line is not '\n':
+            if line is not '\n' and not line.startswith('Payment'):
                 last_line = line
 
-        return last_line
+        return last_line.strip()
 
 
 def get_duration_hours(start, end):
-    return (start - end).seconds / 3600
+    delta = (end - start)
+    return (delta.days * 24) + (delta.seconds / 3600)
 
 
 def parse_time(time_string, initial_keyword):
@@ -151,7 +152,7 @@ class ConfigMode(Mode):
 
 class StartMode(Mode):
     def run(self):
-        last_line = get_last_line()
+        last_line = get_last_non_payment_line()
 
         if last_line is None or last_line == END_LINE:
             logfile_path = get_logfile_path()
@@ -166,14 +167,15 @@ class StartMode(Mode):
 
 class EndMode(Mode):
     def run(self):
-        last_line = get_last_line()
+        last_line = get_last_non_payment_line()
 
         if last_line is None:
             raise ValueError('No shift time started yet.')
         elif last_line.startswith('Start: '):
             start_time = parse_time(last_line, 'Start: ')
             end_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            duration = (parse_time(end_time, ' ') - start_time).seconds / 3600
+
+            duration = get_duration_hours(start_time, parse_time(end_time, ' '))
 
             with open(get_logfile_path(), 'a+') as logfile:
                 logfile.write('End: ' + end_time + '\n')
@@ -202,7 +204,6 @@ class PaymentMode(Mode):
         with open(logfile_path, 'a+') as logfile:
             logfile.write('Payment Made: {0:s} : ${1:.2f}\n'.format(time.strftime("%Y-%m-%d %H:%M:%S"), self.__payment))
             logfile.write('Payment Pending: $%.2f\n' % (pending_payment - self.__payment))
-            logfile.write(END_LINE + '\n')
 
     @staticmethod
     def __get_pending_payment():
@@ -228,7 +229,7 @@ class PaymentMode(Mode):
                         raise ValueError("Logfile corrupted. Two successive 'End' statements without a 'Start' one.")
                     else:
                         end_time = parse_time(line, 'End: ')
-                        duration = (end_time - last_start).seconds / 3600
+                        duration = get_duration_hours(last_start, end_time)
                         last_start = None
                         pending_payment += rate * duration
                 elif line.startswith('Payment Made: '):
