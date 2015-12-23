@@ -4,7 +4,7 @@ hour_logger is a simple command line app for logging your work hours and managin
 
   - You can start and end shifts, and see the duration that you worked for
   - You can see how much money you expect to earn in these shifts
-  - You can record the money you received on your paychecks, and hour_logger will keep a running tally of the pending payments
+  - You can record the money that you received on your paychecks, and hour_logger will keep a running tally of the pending payments
 
 ### Installation
 
@@ -12,7 +12,7 @@ You will need [Python 3.5+](https://www.python.org/downloads/) installed in your
 
 For installation:
 ```sh
-$ cd <installation_directory>
+$ cd <repo_directory>
 $ chmod a+x ./install.sh && ./install.sh
 ```
 
@@ -52,7 +52,8 @@ $ hours --rconfig
 # For deleting the log file and config settings
 $ hours --reset
 
-# If contributing, and want to see the entire Python exception stack trace, use --debug flag with any other option. e.g.:
+# If contributing, and want to see the entire Python exception stack trace,
+# use --debug flag with any other option. e.g.:
 $ hours --payment 34.5 --debug
 ```
 ### License
