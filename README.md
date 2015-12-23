@@ -10,13 +10,13 @@ hour_logger is a simple command line app for logging your work hours and managin
 
 You will need [Python 3.5+](https://www.python.org/downloads/) installed in your /usr/local/bin directory as the executable 'python3'. For other configs, change the first line of './hour_logger.py' appropriately.
 
-For installation:
+Install hours_logger like this:
 ```sh
-$ cd <repo_directory>
-$ chmod a+x ./install.sh && ./install.sh
+# installed_name is optional, and if not supplied, defaults to 'hours'
+$ chmod a+x path/to/repo/install.sh && path/to/repo/install.sh installed_name
 ```
 
-This will add a symbolic link 'hours' to your '/usr/local/bin/' directory for the main 'hour_logger.py' file, and give it executable permissions. You may need to restart your terminal session. The following sections assume that '/usr/local/bin/' is in your PATH.
+This will add a symbolic link 'installed_name' to your '/usr/local/bin/' directory for the main 'hour_logger.py' file, and give it executable permissions. You may need to restart your terminal session. The following sections assume that '/usr/local/bin/' is in your PATH, and that you used the default installed_name ('hours').
 
 ### Usage
 
@@ -43,6 +43,9 @@ $ hours --payment 100.24
 
 Other options:
 ```sh
+# For seeing the current status
+$ hours --status
+
 # For deleting the log file
 $ hours --clear
 
