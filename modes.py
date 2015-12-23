@@ -27,7 +27,14 @@ def get_mode(options):
         return ConfigMode(options[1:])
 
     elif options[0] == '--rconfig':
-        return ResetConfigMode()
+        return DeleteFileMode(get_config_file_path())
+
+    elif options[0] == '--clear':
+        return DeleteFileMode(get_logfile_path())
+
+    elif options[0] == '--reset':
+        # Order is important, clear mode won't work without any config
+        return CompositeMode(DeleteFileMode(get_logfile_path()), DeleteFileMode(get_config_file_path()))
 
     elif options[0] == '--start':
         return StartMode()
@@ -98,6 +105,9 @@ def get_last_non_payment_line():
             if line is not '\n' and not line.startswith('Payment'):
                 last_line = line
 
+        if last_line is None:
+            return last_line
+
         return last_line.strip()
 
 
@@ -153,12 +163,15 @@ class ConfigMode(Mode):
                 raise ValueError("Bad command line parameter: '{0}.'".format(key))
 
 
-class ResetConfigMode(Mode):
+class DeleteFileMode(Mode):
+    def __init__(self, file_path):
+        self.__file_path = file_path
+
     def run(self):
         super()
 
-        if os.path.isfile(get_config_file_path()):
-            os.remove(get_config_file_path())
+        if os.path.isfile(self.__file_path):
+            os.remove(self.__file_path)
 
 
 class StartMode(Mode):
@@ -251,3 +264,14 @@ class PaymentMode(Mode):
                     pending_payment -= payment_made
 
         return pending_payment
+
+
+class CompositeMode(Mode):
+    def __init__(self, *modes):
+        self.__modes = modes
+
+    def run(self):
+        super()
+
+        for mode in self.__modes:
+            mode.run()
