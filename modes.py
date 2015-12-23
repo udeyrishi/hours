@@ -26,6 +26,9 @@ def get_mode(options):
             raise ValueError('No config arguments passed.')
         return ConfigMode(options[1:])
 
+    elif options[0] == '--rconfig':
+        return ResetConfigMode()
+
     elif options[0] == '--start':
         return StartMode()
 
@@ -150,8 +153,17 @@ class ConfigMode(Mode):
                 raise ValueError("Bad command line parameter: '{0}.'".format(key))
 
 
+class ResetConfigMode(Mode):
+    def run(self):
+        super()
+
+        if os.path.isfile(get_config_file_path()):
+            os.remove(get_config_file_path())
+
+
 class StartMode(Mode):
     def run(self):
+        super()
         last_line = get_last_non_payment_line()
 
         if last_line is None or last_line == END_LINE:
@@ -167,6 +179,7 @@ class StartMode(Mode):
 
 class EndMode(Mode):
     def run(self):
+        super()
         last_line = get_last_non_payment_line()
 
         if last_line is None:
@@ -198,6 +211,7 @@ class PaymentMode(Mode):
         self.__payment = float(payment)
 
     def run(self):
+        super()
         pending_payment = self.__get_pending_payment()
 
         logfile_path = get_logfile_path()
