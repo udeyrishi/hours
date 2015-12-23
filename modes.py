@@ -76,6 +76,15 @@ def get_logfile_path():
     return config['logfile']
 
 
+def get_wage_rate():
+    config = get_configuration()
+
+    if 'rate' not in config:
+        raise NotYetConfiguredError('Please configure the earning hourly wage. e.g.: --config -rate 13.45')
+
+    return float(config['rate'])
+
+
 def get_last_line():
     logfile_path = get_logfile_path()
 
@@ -87,6 +96,14 @@ def get_last_line():
                 last_line = line
 
         return last_line
+
+
+def get_duration_hours(start, end):
+    return (start - end).seconds / 3600
+
+
+def parse_time(time_string, initial_keyword):
+    return datetime.strptime(time_string.strip(initial_keyword).strip(), "%Y-%m-%d %H:%M:%S")
 
 
 class NotYetConfiguredError(Exception):
@@ -154,9 +171,9 @@ class EndMode(Mode):
         if last_line is None:
             raise ValueError('No shift time started yet.')
         elif last_line.startswith('Start: '):
-            start_time = datetime.strptime(last_line.strip('Start: ').strip(), "%Y-%m-%d %H:%M:%S")
+            start_time = parse_time(last_line, 'Start: ')
             end_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            duration = (datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S") - start_time).seconds / 3600
+            duration = (parse_time(end_time, ' ') - start_time).seconds / 3600
 
             with open(get_logfile_path(), 'a+') as logfile:
                 logfile.write('End: ' + end_time + '\n')
@@ -184,8 +201,38 @@ class PaymentMode(Mode):
         logfile_path = get_logfile_path()
         with open(logfile_path, 'a+') as logfile:
             logfile.write('Payment Made: {0:s} : ${1:.2f}\n'.format(time.strftime("%Y-%m-%d %H:%M:%S"), self.__payment))
-            logfile.write('Pending payment: $%.2f\n' % (pending_payment - self.__payment))
+            logfile.write('Payment Pending: $%.2f\n' % (pending_payment - self.__payment))
             logfile.write(END_LINE + '\n')
 
-    def __get_pending_payment(self):
-        return 10
+    @staticmethod
+    def __get_pending_payment():
+        rate = get_wage_rate()
+        logfile_path = get_logfile_path()
+
+        pending_payment = 0
+
+        if not os.path.isfile(logfile_path):
+            return 0
+
+        with open(logfile_path, 'r') as logfile:
+            last_start = None
+
+            for line in logfile.readlines():
+                if line.startswith('Start: '):
+                    if last_start is None:
+                        last_start = parse_time(line, 'Start: ')
+                    else:
+                        raise ValueError("Logfile corrupted. Two successive 'Start' statements without an 'End' one.")
+                elif line.startswith('End: '):
+                    if last_start is None:
+                        raise ValueError("Logfile corrupted. Two successive 'End' statements without a 'Start' one.")
+                    else:
+                        end_time = parse_time(line, 'End: ')
+                        duration = (end_time - last_start).seconds / 3600
+                        last_start = None
+                        pending_payment += rate * duration
+                elif line.startswith('Payment Made: '):
+                    payment_made = float(line[line.rfind('$') + 1:])
+                    pending_payment -= payment_made
+
+        return pending_payment
