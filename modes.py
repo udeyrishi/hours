@@ -48,6 +48,9 @@ def get_mode(options):
 
         return PaymentMode(options[1])
 
+    elif options[0] == '--status':
+        return StatusMode()
+
     else:
         raise ValueError("Unknown option: '{0}'".format(options[0]))
 
@@ -95,7 +98,7 @@ def get_wage_rate():
     return float(config['rate'])
 
 
-def get_last_non_payment_line():
+def get_last_non_payment_line(ignore_end_line=False):
     logfile_path = get_logfile_path()
 
     with open(logfile_path, 'a+') as logfile:
@@ -103,7 +106,10 @@ def get_last_non_payment_line():
         last_line = None
         for line in logfile:
             if line is not '\n' and not line.startswith('Payment'):
-                last_line = line
+                if line.strip() == END_LINE and ignore_end_line:
+                    continue
+                else:
+                    last_line = line
 
         if last_line is None:
             return last_line
@@ -118,6 +124,39 @@ def get_duration_hours(start, end):
 
 def parse_time(time_string, initial_keyword):
     return datetime.strptime(time_string.strip(initial_keyword).strip(), "%Y-%m-%d %H:%M:%S")
+
+
+def get_pending_payment():
+    rate = get_wage_rate()
+    logfile_path = get_logfile_path()
+
+    pending_payment = 0
+
+    if not os.path.isfile(logfile_path):
+        return 0
+
+    with open(logfile_path, 'r') as logfile:
+        last_start = None
+
+        for line in logfile.readlines():
+            if line.startswith('Start: '):
+                if last_start is None:
+                    last_start = parse_time(line, 'Start: ')
+                else:
+                    raise ValueError("Logfile corrupted. Two successive 'Start' statements without an 'End' one.")
+            elif line.startswith('End: '):
+                if last_start is None:
+                    raise ValueError("Logfile corrupted. Two successive 'End' statements without a 'Start' one.")
+                else:
+                    end_time = parse_time(line, 'End: ')
+                    duration = get_duration_hours(last_start, end_time)
+                    last_start = None
+                    pending_payment += rate * duration
+            elif line.startswith('Payment Made: '):
+                payment_made = float(line[line.rfind('$') + 1:])
+                pending_payment -= payment_made
+
+    return pending_payment
 
 
 class NotYetConfiguredError(Exception):
@@ -225,45 +264,12 @@ class PaymentMode(Mode):
 
     def run(self):
         super()
-        pending_payment = self.__get_pending_payment()
+        pending_payment = get_pending_payment()
 
         logfile_path = get_logfile_path()
         with open(logfile_path, 'a+') as logfile:
             logfile.write('Payment Made: {0:s} : ${1:.2f}\n'.format(time.strftime("%Y-%m-%d %H:%M:%S"), self.__payment))
             logfile.write('Payment Pending: $%.2f\n' % (pending_payment - self.__payment))
-
-    @staticmethod
-    def __get_pending_payment():
-        rate = get_wage_rate()
-        logfile_path = get_logfile_path()
-
-        pending_payment = 0
-
-        if not os.path.isfile(logfile_path):
-            return 0
-
-        with open(logfile_path, 'r') as logfile:
-            last_start = None
-
-            for line in logfile.readlines():
-                if line.startswith('Start: '):
-                    if last_start is None:
-                        last_start = parse_time(line, 'Start: ')
-                    else:
-                        raise ValueError("Logfile corrupted. Two successive 'Start' statements without an 'End' one.")
-                elif line.startswith('End: '):
-                    if last_start is None:
-                        raise ValueError("Logfile corrupted. Two successive 'End' statements without a 'Start' one.")
-                    else:
-                        end_time = parse_time(line, 'End: ')
-                        duration = get_duration_hours(last_start, end_time)
-                        last_start = None
-                        pending_payment += rate * duration
-                elif line.startswith('Payment Made: '):
-                    payment_made = float(line[line.rfind('$') + 1:])
-                    pending_payment -= payment_made
-
-        return pending_payment
 
 
 class CompositeMode(Mode):
@@ -275,3 +281,30 @@ class CompositeMode(Mode):
 
         for mode in self.__modes:
             mode.run()
+
+
+class StatusMode(Mode):
+    def run(self):
+        super()
+
+        if is_configured():
+
+            pending_payment = 'Unknown (rate not configured)'
+            if 'rate' in get_configuration():
+                pending_payment = '${0:.2f}'.format(get_pending_payment())
+
+            print("Status: {0}. Pending payments: {1}".format(self.__get_status(),
+                  pending_payment))
+        else:
+            print("App not configured yet. Use the --config option to configure.")
+
+    @staticmethod
+    def __get_status():
+        last_line = get_last_non_payment_line(True)
+
+        if last_line.startswith('Start: '):
+            return "Shift Ongoing"
+        elif last_line.startswith('Duration: ') or last_line.startswith('Money earned: '):
+            return "Shift Not Ongoing"
+        else:
+            raise ValueError("Corrupted log file. Unexpected line: '{0}'".format(last_line))
