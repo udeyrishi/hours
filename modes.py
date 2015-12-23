@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime
 
-SETUP_DIR = '.hour_logger'
+SETUP_DIR = '/usr/local/bin/hours'
 CONFIG_FILE = 'config.json'
 END_LINE = '--------------------------------------------\n'
 
