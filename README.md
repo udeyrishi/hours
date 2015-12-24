@@ -43,7 +43,9 @@ $ hours --payment 100.24
 
 Other options:
 ```sh
-# For seeing the current status
+# For seeing the current status--whether a shift is ongoing or not, and if ongoing,
+# what is the total pending payment of all the completed shifts plus this shift,
+# if this shift were ended right now, minus all the payments made
 $ hours --status
 
 # For deleting the log file
@@ -54,6 +56,9 @@ $ hours --rconfig
 
 # For deleting the log file and config settings
 $ hours --reset
+
+# For seeing the current config
+$ hours --config
 
 # If contributing, and want to see the entire Python exception stack trace,
 # use --debug flag with any other option. e.g.:
