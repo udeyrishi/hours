@@ -180,6 +180,11 @@ def get_pending_payment():
     return pending_payment
 
 
+def get_ongoing_shift_hours(last_start_line):
+    start = parse_time(last_start_line, 'Start: ')
+    end = datetime.today()
+    return get_duration_hours(start, end)
+
 class NotYetConfiguredError(Exception):
     def __init__(self, value):
         self.value = value
@@ -267,12 +272,12 @@ class EndMode(Mode):
             raise ValueError('No shift time started yet.')
         elif last_line.startswith('Start: '):
             start_time = parse_time(last_line, 'Start: ')
-            end_time = time.strftime("%Y-%m-%d %H:%M:%S")
+            end_time = datetime.now()
 
-            duration = get_duration_hours(start_time, parse_time(end_time, ' '))
+            duration = get_duration_hours(start_time, end_time)
 
             with open(get_logfile_path(), 'a+') as logfile:
-                logfile.write('End: ' + end_time + '\n')
+                logfile.write('End: ' + end_time.strftime("%Y-%m-%d %H:%M:%S") + '\n')
                 logfile.write('Duration: ' + "%.4f" % duration + ' hours \n')
                 config = get_configuration()
                 if 'rate' in config:
@@ -320,10 +325,44 @@ class StatusMode(Mode):
 
             status = self.__get_status()
             pending_payment = self.__get_pending_payment(status)
+            today_hours = self.__get_today_hours()
 
-            print("Status: {0}. Pending payments: {1}".format(status, pending_payment))
+            print("Status: {0}. Total pending payments: {1}. Hours "
+                  "worked today: {2:.4f}".format(status, pending_payment, today_hours))
         else:
             print("App not configured yet. Use the --config option to configure.")
+
+    def __get_today_hours(self):
+        today_hours = 0
+        today = datetime.now()
+
+        if os.path.isfile(get_logfile_path()):
+            with open(get_logfile_path(), 'r') as logfile:
+                last_start = None
+
+                for line in logfile.readlines():
+                    if line.startswith('Start: '):
+                        if last_start is None:
+                            last_start = parse_time(line, 'Start: ')
+                        else:
+                            raise ValueError("Logfile corrupted. Two successive 'Start' statements without an 'End' one.")
+                    elif line.startswith('End: '):
+                        if last_start is None:
+                            raise ValueError("Logfile corrupted. Two successive 'End' statements without a 'Start' one.")
+                        else:
+                            end_time = parse_time(line, 'End: ')
+
+                            if end_time.date() == today.date():
+                                duration = get_duration_hours(last_start, end_time)
+                                today_hours += duration
+
+                            last_start = None
+
+                if last_start is not None:
+                    today_hours += get_ongoing_shift_hours(self.__last_start_line)
+
+        return today_hours
+
 
     def __get_pending_payment(self, status):
         pending_payment = 'Unknown (rate not configured)'
@@ -332,9 +371,8 @@ class StatusMode(Mode):
             base_payment = get_pending_payment()
 
             if status == 'Shift Ongoing':
-                start = parse_time(self.__last_start_line, 'Start: ')
-                end = parse_time(time.strftime("%Y-%m-%d %H:%M:%S"), ' ')
-                base_payment += get_wage_rate() * get_duration_hours(start, end)
+                ongoing_shift_hours = get_ongoing_shift_hours(self.__last_start_line)
+                base_payment += get_wage_rate() * ongoing_shift_hours
 
             pending_payment = '${0:.2f}'.format(base_payment)
 
