@@ -117,7 +117,10 @@ def get_wage_rate():
 def get_last_non_payment_line(ignore_end_line=False):
     logfile_path = get_logfile_path()
 
-    with open(logfile_path, 'a+') as logfile:
+    if not os.path.isfile(logfile_path):
+        return None
+
+    with open(logfile_path, 'r') as logfile:
         logfile.seek(0)
         last_line = None
         for line in logfile:
@@ -318,7 +321,9 @@ class StatusMode(Mode):
     def __get_status():
         last_line = get_last_non_payment_line(True)
 
-        if last_line.startswith('Start: '):
+        if last_line is None:
+            return "Shift Not Ongoing"
+        elif last_line.startswith('Start: '):
             return "Shift Ongoing"
         elif last_line.startswith('Duration: ') or last_line.startswith('Money earned: '):
             return "Shift Not Ongoing"
