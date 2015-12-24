@@ -39,8 +39,9 @@ def get_mode(options):
 
     if options[0] == '--config':
         if len(options) < 2:
-            raise ValueError('No config arguments passed.')
-        return ConfigMode(options[1:])
+            return ReadConfigMode()
+        else:
+            return ConfigMode(options[1:])
 
     elif options[0] == '--rconfig':
         return DeleteFileMode(get_config_file_path())
@@ -76,7 +77,7 @@ def get_config_file_path():
 
 
 def is_configured():
-    if not os.path.exists(get_config_file_path()):
+    if not os.path.isfile(get_config_file_path()):
         return False
 
     with open(get_config_file_path(), 'r') as config_file:
@@ -89,7 +90,8 @@ def is_configured():
 
 def get_configuration():
     if not is_configured():
-        raise NotYetConfiguredError('Program has not been configured yet.')
+        raise NotYetConfiguredError('Program has not been configured yet. '
+                                    'Use --config option to configure.')
 
     with open(get_config_file_path(), 'r') as config_file:
         return json.load(config_file)
@@ -184,6 +186,14 @@ class NotYetConfiguredError(Exception):
 
     def __str__(self):
         return repr(self.value)
+
+
+class ReadConfigMode(Mode):
+    def run(self):
+        super()
+
+        for key, value in get_configuration().items():
+            print('{0}: {1}'.format(key, value))
 
 
 class ConfigMode(Mode):
