@@ -308,22 +308,35 @@ class StatusMode(Mode):
 
         if is_configured():
 
-            pending_payment = 'Unknown (rate not configured)'
-            if 'rate' in get_configuration():
-                pending_payment = '${0:.2f}'.format(get_pending_payment())
+            status = self.__get_status()
+            pending_payment = self.__get_pending_payment(status)
 
-            print("Status: {0}. Pending payments: {1}".format(self.__get_status(),
-                  pending_payment))
+            print("Status: {0}. Pending payments: {1}".format(status, pending_payment))
         else:
             print("App not configured yet. Use the --config option to configure.")
 
-    @staticmethod
-    def __get_status():
+    def __get_pending_payment(self, status):
+        pending_payment = 'Unknown (rate not configured)'
+
+        if 'rate' in get_configuration():
+            base_payment = get_pending_payment()
+
+            if status == 'Shift Ongoing':
+                start = parse_time(self.__last_start_line, 'Start: ')
+                end = parse_time(time.strftime("%Y-%m-%d %H:%M:%S"), ' ')
+                base_payment += get_wage_rate() * get_duration_hours(start, end)
+
+            pending_payment = '${0:.2f}'.format(base_payment)
+
+        return pending_payment
+
+    def __get_status(self):
         last_line = get_last_non_payment_line(True)
 
         if last_line is None:
             return "Shift Not Ongoing"
         elif last_line.startswith('Start: '):
+            self.__last_start_line = last_line
             return "Shift Ongoing"
         elif last_line.startswith('Duration: ') or last_line.startswith('Money earned: '):
             return "Shift Not Ongoing"
