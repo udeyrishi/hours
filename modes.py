@@ -56,7 +56,7 @@ def get_mode(options):
     elif options[0] == '--start':
         return StartMode()
 
-    elif options[0] == '--end':
+    elif options[0] == '--end' or options[0] == '--stop':
         return EndMode()
 
     elif options[0] == '--payment':
