@@ -1,5 +1,7 @@
 # hour_logger
 
+![](https://raw.githubusercontent.com/udeyrishi/hour_logger/master/hour_logger.png)
+
 hour_logger is a simple command line app for logging your work hours and managing the money you make at work.
 
   - You can start and end shifts, and see the duration that you worked for
