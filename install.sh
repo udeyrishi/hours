@@ -23,6 +23,15 @@ fi
 
 SCRIPTPATH="$(cd "$(dirname "$0")" && pwd -P)"
 MAIN_FILE=${SCRIPTPATH%%/}/hour_logger.py
+LINK_FILE=/usr/local/bin/$NAME
+
+# Soft link the script in /usr/local/bin
 chmod a+x $MAIN_FILE
-ln -s $MAIN_FILE /usr/local/bin/$NAME
-chmod a+x /usr/local/bin/$NAME
+ln -s $MAIN_FILE $LINK_FILE
+chmod a+x $LINK_FILE
+
+# Generate the BitBar plugin file in the script location dir
+PLUGIN_PATH=${SCRIPTPATH%%/}/${NAME}.1h.sh
+echo "#!/bin/bash" > $PLUGIN_PATH
+echo ${LINK_FILE}" --bitbar" >> $PLUGIN_PATH
+chmod a+x $PLUGIN_PATH
