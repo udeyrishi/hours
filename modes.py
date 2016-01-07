@@ -68,6 +68,9 @@ def get_mode(options):
     elif options[0] == '--status':
         return StatusMode()
 
+    elif options[0] == '--bitbar':
+        return BitbarStatusMode()
+
     else:
         raise ValueError("Unknown option: '{0}'".format(options[0]))
 
@@ -326,11 +329,17 @@ class StatusMode(Mode):
             status = self.__get_status()
             pending_payment = self.__get_pending_payment(status)
             today_hours = self.__get_today_hours()
-
-            print("Status: {0}. Total pending payments: {1}. Hours "
-                  "worked today: {2:.4f}".format(status, pending_payment, today_hours))
+            self.output_status(status, pending_payment, today_hours)
         else:
-            print("App not configured yet. Use the --config option to configure.")
+            self.output_not_configured()
+
+    def output_status(self, status, pending_payment, today_hours):
+        print("Status: {0}. Total pending payments: {1}. Hours "
+                  "worked today: {2:.4f}".format(status, pending_payment, today_hours))
+
+    def output_not_configured(self):
+        print("App not configured yet. Use the --config option to configure.")
+
 
     def __get_today_hours(self):
         today_hours = 0
@@ -363,7 +372,6 @@ class StatusMode(Mode):
 
         return today_hours
 
-
     def __get_pending_payment(self, status):
         pending_payment = 'Unknown (rate not configured)'
 
@@ -390,3 +398,16 @@ class StatusMode(Mode):
             return "Shift Not Ongoing"
         else:
             raise ValueError("Corrupted log file. Unexpected line: '{0}'".format(last_line))
+
+
+class BitbarStatusMode(StatusMode):
+    def output_status(self, status, pending_payment, today_hours):
+        print("Today: {0:.2f}h. Pending: {1}".format(today_hours, pending_payment))
+        print("---")
+        print(status)
+
+    def output_not_configured(self):
+        print("Not configured")
+
+
+
