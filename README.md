@@ -7,6 +7,7 @@ hour_logger is a simple command line app for logging your work hours and managin
   - You can start and end shifts, and see the duration that you worked for
   - You can see how much money you expect to earn in these shifts
   - You can record the money that you received on your paychecks, and hour_logger will keep a running tally of the pending payments
+  - hour_logger is [BitBar](https://github.com/matryer/bitbar) compatible for displaying the status in your OS X menu bar.
 
 ### Installation
 
@@ -19,6 +20,8 @@ $ chmod a+x path/to/repo/install.sh && path/to/repo/install.sh installed_name
 ```
 
 This will add a symbolic link 'installed_name' to your '/usr/local/bin/' directory for the main 'hour_logger.py' file, and give it executable permissions. You may need to restart your terminal session. The following sections assume that '/usr/local/bin/' is in your PATH, and that you used the default installed_name ('hours').
+
+Additionally, this will generate a shell script called installed_name.1h.sh in your repo directory, and gives it executable permissions. If you use [BitBar](https://github.com/matryer/bitbar), and want to use hour_logger as a plugin, then put this file in your plugins directory. Else, you can ignore/delete it. This plugin uses the '--bitbar' option of hour_logger for generating the Bitbar output (see Usage below).
 
 ### Usage
 
@@ -49,6 +52,9 @@ Other options:
 # what is the total pending payment of all the completed shifts plus this shift,
 # if this shift were ended right now, minus all the payments made. Also shows today's hours
 $ hours --status
+
+# For seeing the current status in a BitBar friendly format (used by the plugin)
+$ hours --bitbar
 
 # For deleting the log file
 $ hours --clear
