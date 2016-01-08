@@ -19,6 +19,7 @@ import abc
 import json
 import time
 import stat
+import sys
 from datetime import datetime
 
 SETUP_DIR = '/usr/local/bin/hours_data'
@@ -89,13 +90,19 @@ def make_executable(path):
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IEXEC)
 
-
 def generate_open_logfile_script():
     script_path = get_open_logfile_script_path()
     if not os.path.isfile(script_path):
         with open(script_path, 'w') as script:
-            script.write('#!/bin/bash\n')
-            script.write('open ' + get_logfile_path() + '\n')
+            script_contents = '#!/bin/bash\n'
+
+            if sys.platform == 'linux' or sys.platform == 'linux2':
+               script_contents += 'xdg-open {0}\n'.format(get_logfile_path())
+            elif sys.platform == 'darwin':
+               script_contents += 'open {0}\n'.format(get_logfile_path())
+            # else, unsupported OS
+
+            script.write(script_contents)
 
         make_executable(script_path)
 
@@ -279,7 +286,7 @@ class StartMode(Mode):
         if last_line is None or last_line == END_LINE:
             logfile_path = get_logfile_path()
             with open(logfile_path, 'a+') as logfile:
-                logfile.write('Start: ' + time.strftime("%Y-%m-%d %H:%M:%S") + '\n')
+                logfile.write('Start: ' + time.strftime('%Y-%m-%d %H:%M:%S') + '\n')
         else:
             if last_line.startswith('Start: '):
                 raise ValueError('Previous shift not ended yet.')
@@ -301,8 +308,8 @@ class EndMode(Mode):
             duration = get_duration_hours(start_time, end_time)
 
             with open(get_logfile_path(), 'a+') as logfile:
-                logfile.write('End: ' + end_time.strftime("%Y-%m-%d %H:%M:%S") + '\n')
-                logfile.write('Duration: ' + "%.4f" % duration + ' hours \n')
+                logfile.write('End: ' + end_time.strftime('%Y-%m-%d %H:%M:%S') + '\n')
+                logfile.write('Duration: ' + '%.4f' % duration + ' hours \n')
                 config = get_configuration()
                 if 'rate' in config:
                     rate = float(config['rate'])
@@ -326,7 +333,7 @@ class PaymentMode(Mode):
 
         logfile_path = get_logfile_path()
         with open(logfile_path, 'a+') as logfile:
-            logfile.write('Payment Made: {0:s} : ${1:.2f}\n'.format(time.strftime("%Y-%m-%d %H:%M:%S"), self.__payment))
+            logfile.write('Payment Made: {0:s} : ${1:.2f}\n'.format(time.strftime('%Y-%m-%d %H:%M:%S'), self.__payment))
             logfile.write('Payment Pending: $%.2f\n' % (pending_payment - self.__payment))
 
 
@@ -355,11 +362,11 @@ class StatusMode(Mode):
             self.output_not_configured()
 
     def output_status(self, status, pending_payment, today_hours):
-        print("Status: {0}. Total pending payments: {1}. Hours "
-                  "worked today: {2:.4f}".format(status, pending_payment, today_hours))
+        print('Status: {0}. Total pending payments: {1}. Hours '
+                  'worked today: {2:.4f}'.format(status, pending_payment, today_hours))
 
     def output_not_configured(self):
-        print("App not configured yet. Use the --config option to configure.")
+        print('App not configured yet. Use the --config option to configure.')
 
 
     def __get_today_hours(self):
@@ -411,12 +418,12 @@ class StatusMode(Mode):
         last_line = get_last_non_payment_line(True)
 
         if last_line is None:
-            return "Shift Not Ongoing"
+            return 'Shift Not Ongoing'
         elif last_line.startswith('Start: '):
             self.__last_start_line = last_line
-            return "Shift Ongoing"
+            return 'Shift Ongoing'
         elif last_line.startswith('Duration: ') or last_line.startswith('Money earned: '):
-            return "Shift Not Ongoing"
+            return 'Shift Not Ongoing'
         else:
             raise ValueError("Corrupted log file. Unexpected line: '{0}'".format(last_line))
 
@@ -424,22 +431,22 @@ class StatusMode(Mode):
 class BitbarStatusMode(StatusMode):
     def output_status(self, status, pending_payment, today_hours):
 
-        status_mini = "{0:.2f}h : {1} | ".format(today_hours, pending_payment)
-        if status == "Shift Ongoing":
-            status_mini += "color=green"
+        status_mini = '{0:.2f}h : {1} | '.format(today_hours, pending_payment)
+        if status == 'Shift Ongoing':
+            status_mini += 'color=green'
         else:
-            status_mini += "color=red"
+            status_mini += 'color=red'
 
         print(status_mini)
-        print("---")
-        print("Hours worked today: {0:.2f}".format(today_hours))
-        print("Payment since last paycheck: {0}".format(pending_payment))
+        print('---')
+        print('Hours worked today: {0:.2f}'.format(today_hours))
+        print('Payment since last paycheck: {0}'.format(pending_payment))
         print(status)
-        print("---")
+        print('---')
         generate_open_logfile_script()
-        print("View Logfile | bash=" + get_open_logfile_script_path()
-              + " terminal=false")
+        print('View Logfile | bash=' + get_open_logfile_script_path()
+              + ' terminal=false')
 
     def output_not_configured(self):
-        print("Not configured")
+        print('Not configured')
 
