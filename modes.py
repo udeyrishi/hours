@@ -18,10 +18,12 @@ import os
 import abc
 import json
 import time
+import stat
 from datetime import datetime
 
 SETUP_DIR = '/usr/local/bin/hours_data'
 CONFIG_FILE = 'config.json'
+OPEN_LOG_SCRIPT_FILE = 'open_log.sh'
 END_LINE = '--------------------------------------------'
 
 
@@ -77,6 +79,25 @@ def get_mode(options):
 
 def get_config_file_path():
     return os.path.join(SETUP_DIR, CONFIG_FILE)
+
+def get_open_logfile_script_path():
+    return os.path.join(SETUP_DIR, OPEN_LOG_SCRIPT_FILE)
+
+
+#Source: http://stackoverflow.com/questions/12791997/how-do-you-do-a-simple-chmod-x-from-within-python
+def make_executable(path):
+    st = os.stat(path)
+    os.chmod(path, st.st_mode | stat.S_IEXEC)
+
+
+def generate_open_logfile_script():
+    script_path = get_open_logfile_script_path()
+    if not os.path.isfile(script_path):
+        with open(script_path, 'w') as script:
+            script.write('#!/bin/bash\n')
+            script.write('open ' + get_logfile_path() + '\n')
+
+        make_executable(script_path)
 
 
 def is_configured():
@@ -414,9 +435,11 @@ class BitbarStatusMode(StatusMode):
         print("Hours worked today: {0:.2f}".format(today_hours))
         print("Payment since last paycheck: {0}".format(pending_payment))
         print(status)
+        print("---")
+        generate_open_logfile_script()
+        print("View Logfile | bash=" + get_open_logfile_script_path()
+              + " terminal=false")
 
     def output_not_configured(self):
         print("Not configured")
-
-
 
