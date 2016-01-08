@@ -402,8 +402,17 @@ class StatusMode(Mode):
 
 class BitbarStatusMode(StatusMode):
     def output_status(self, status, pending_payment, today_hours):
-        print("Today: {0:.2f}h. Pending: {1}".format(today_hours, pending_payment))
+
+        status_mini = "{0:.2f}h : {1} | ".format(today_hours, pending_payment)
+        if status == "Shift Ongoing":
+            status_mini += "color=green"
+        else:
+            status_mini += "color=red"
+
+        print(status_mini)
         print("---")
+        print("Hours worked today: {0:.2f}".format(today_hours))
+        print("Payment since last paycheck: {0}".format(pending_payment))
         print(status)
 
     def output_not_configured(self):
