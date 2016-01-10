@@ -23,8 +23,10 @@ import sys
 from datetime import datetime
 
 SETUP_DIR = '/usr/local/bin/hours_data'
-CONFIG_FILE = 'config.json'
-OPEN_LOG_SCRIPT_FILE = 'open_log.sh'
+CONFIG_FILE_PATH = os.path.join(SETUP_DIR, 'config.json')
+OPEN_LOG_SCRIPT_PATH = os.path.join(SETUP_DIR, 'open_log.sh')
+START_SCRIPT_PATH = os.path.join(SETUP_DIR, 'start.sh')
+END_SCRIPT_PATH = os.path.join(SETUP_DIR, 'end.sh')
 END_LINE = '--------------------------------------------'
 
 
@@ -47,14 +49,14 @@ def get_mode(options):
             return ConfigMode(options[1:])
 
     elif options[0] == '--rconfig':
-        return DeleteFileMode(get_config_file_path())
+        return DeleteFileMode(CONFIG_FILE_PATH)
 
     elif options[0] == '--clear':
         return DeleteFileMode(get_logfile_path())
 
     elif options[0] == '--reset':
         # Order is important, clear mode won't work without any config
-        return CompositeMode(DeleteFileMode(get_logfile_path()), DeleteFileMode(get_config_file_path()))
+        return CompositeMode(DeleteFileMode(get_logfile_path()), DeleteFileMode(CONFIG_FILE_PATH))
 
     elif options[0] == '--start':
         return StartMode()
@@ -78,22 +80,14 @@ def get_mode(options):
         raise ValueError("Unknown option: '{0}'".format(options[0]))
 
 
-def get_config_file_path():
-    return os.path.join(SETUP_DIR, CONFIG_FILE)
-
-def get_open_logfile_script_path():
-    return os.path.join(SETUP_DIR, OPEN_LOG_SCRIPT_FILE)
-
-
 #Source: http://stackoverflow.com/questions/12791997/how-do-you-do-a-simple-chmod-x-from-within-python
 def make_executable(path):
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IEXEC)
 
 def generate_open_logfile_script():
-    script_path = get_open_logfile_script_path()
-    if not os.path.isfile(script_path):
-        with open(script_path, 'w') as script:
+    if not os.path.isfile(OPEN_LOG_SCRIPT_PATH):
+        with open(OPEN_LOG_SCRIPT_PATH, 'w') as script:
             script_contents = '#!/bin/bash\n'
 
             if sys.platform == 'linux' or sys.platform == 'linux2':
@@ -104,14 +98,14 @@ def generate_open_logfile_script():
 
             script.write(script_contents)
 
-        make_executable(script_path)
+        make_executable(OPEN_LOG_SCRIPT_PATH)
 
 
 def is_configured():
-    if not os.path.isfile(get_config_file_path()):
+    if not os.path.isfile(CONFIG_FILE_PATH):
         return False
 
-    with open(get_config_file_path(), 'r') as config_file:
+    with open(CONFIG_FILE_PATH, 'r') as config_file:
         try:
             json.load(config_file)
             return True
@@ -124,7 +118,7 @@ def get_configuration():
         raise NotYetConfiguredError('Program has not been configured yet. '
                                     'Use --config option to configure.')
 
-    with open(get_config_file_path(), 'r') as config_file:
+    with open(CONFIG_FILE_PATH, 'r') as config_file:
         return json.load(config_file)
 
 
@@ -251,7 +245,7 @@ class ConfigMode(Mode):
                 }
             self.__config.update(settings_to_be_kept)
 
-        with open(get_config_file_path(), 'w') as config_file:
+        with open(CONFIG_FILE_PATH, 'w') as config_file:
             json.dump(self.__config, config_file, indent=4)
 
     def __parse_config_args(self, config_args):
@@ -443,9 +437,11 @@ class BitbarStatusMode(StatusMode):
         print('Payment since last paycheck: {0}'.format(pending_payment))
         print(status)
         print('---')
+        print('Start Shift | refresh=true bash=' + START_SCRIPT_PATH + ' terminal=false')
+        print('End Shift | refresh=true bash=' + END_SCRIPT_PATH+ ' terminal=false')
+        print('---')
         generate_open_logfile_script()
-        print('View Logfile | bash=' + get_open_logfile_script_path()
-              + ' terminal=false')
+        print('View Logfile | bash=' + OPEN_LOG_SCRIPT_PATH + ' terminal=false')
 
     def output_not_configured(self):
         print('Not configured')

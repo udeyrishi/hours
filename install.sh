@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+SETUP_DIR=/usr/local/bin/hours_data
+START_SCRIPT=${SETUP_DIR}/start.sh
+END_SCRIPT=${SETUP_DIR}/end.sh
+
 if [ -z "$1" ]
     then
         NAME=hours
@@ -35,3 +39,13 @@ PLUGIN_PATH=${SCRIPTPATH%%/}/${NAME}.1h.sh
 echo "#!/bin/bash" > $PLUGIN_PATH
 echo ${LINK_FILE}" --bitbar" >> $PLUGIN_PATH
 chmod a+x $PLUGIN_PATH
+
+# Generate plugin helper script in the SETUP_DIR
+mkdir -p SETUP_DIR
+echo "#!/bin/bash" > $START_SCRIPT
+echo ${LINK_FILE}" --start" >> $START_SCRIPT
+chmod a+x $START_SCRIPT
+
+echo "#!/bin/bash" > $END_SCRIPT
+echo ${LINK_FILE}" --end" >> $END_SCRIPT
+chmod a+x $END_SCRIPT
