@@ -437,11 +437,15 @@ class BitbarStatusMode(StatusMode):
         print('Payment since last paycheck: {0}'.format(pending_payment))
         print(status)
         print('---')
-        print('Start Shift | refresh=true bash=' + START_SCRIPT_PATH + ' terminal=false')
-        print('End Shift | refresh=true bash=' + END_SCRIPT_PATH+ ' terminal=false')
+
+        if status == 'Shift Ongoing':
+            print('End Shift | refresh=true bash=' + END_SCRIPT_PATH+ ' terminal=false')
+        else:
+            print('Start Shift | refresh=true bash=' + START_SCRIPT_PATH + ' terminal=false')
+
         print('---')
         generate_open_logfile_script()
-        print('View Logfile | bash=' + OPEN_LOG_SCRIPT_PATH + ' terminal=false')
+        print('View Logfile | refresh=true bash=' + OPEN_LOG_SCRIPT_PATH + ' terminal=false')
 
     def output_not_configured(self):
         print('Not configured')
