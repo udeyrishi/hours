@@ -22,7 +22,7 @@ $ chmod a+x path/to/repo/install.sh && path/to/repo/install.sh installed_name
 This will add a symbolic link 'installed_name' to your '/usr/local/bin/' directory for the main 'hour_logger.py' file, and give it executable permissions. You may need to restart your terminal session. The following sections assume that '/usr/local/bin/' is in your PATH, and that you used the default installed_name ('hours').
 
 ### BitBar
-![](https://raw.githubusercontent.com/udeyrishi/hour_logger/master/bitbar.png) ![](https://raw.githubusercontent.com/udeyrishi/hour_logger/master/bitbar2.png)
+![](https://raw.githubusercontent.com/udeyrishi/hour_logger/master/bitbar_start.png) ![](https://raw.githubusercontent.com/udeyrishi/hour_logger/master/bitbar_end.png)
 Additionally, the install.sh will generate a shell script called installed_name.1m.sh in your repo directory, and gives it executable permissions. If you use [BitBar](https://github.com/matryer/bitbar), and want to use hour_logger as a plugin, then put this file in your plugins directory. Else, you can ignore/delete it. This plugin uses the '--bitbar' option of hour_logger for generating the BitBar friendly output.
 
 ### Usage
