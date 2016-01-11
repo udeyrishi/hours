@@ -23,7 +23,7 @@ This will add a symbolic link 'installed_name' to your '/usr/local/bin/' directo
 
 ### BitBar
 ![](https://raw.githubusercontent.com/udeyrishi/hour_logger/master/bitbar.png) ![](https://raw.githubusercontent.com/udeyrishi/hour_logger/master/bitbar2.png)
-Additionally, the install.sh will generate a shell script called installed_name.1h.sh in your repo directory, and gives it executable permissions. If you use [BitBar](https://github.com/matryer/bitbar), and want to use hour_logger as a plugin, then put this file in your plugins directory. Else, you can ignore/delete it. This plugin uses the '--bitbar' option of hour_logger for generating the BitBar friendly output.
+Additionally, the install.sh will generate a shell script called installed_name.1m.sh in your repo directory, and gives it executable permissions. If you use [BitBar](https://github.com/matryer/bitbar), and want to use hour_logger as a plugin, then put this file in your plugins directory. Else, you can ignore/delete it. This plugin uses the '--bitbar' option of hour_logger for generating the BitBar friendly output.
 
 ### Usage
 

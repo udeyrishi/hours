@@ -35,7 +35,7 @@ ln -s $MAIN_FILE $LINK_FILE
 chmod a+x $LINK_FILE
 
 # Generate the BitBar plugin file in the script location dir
-PLUGIN_PATH=${SCRIPTPATH%%/}/${NAME}.1h.sh
+PLUGIN_PATH=${SCRIPTPATH%%/}/${NAME}.1m.sh
 echo "#!/bin/bash" > $PLUGIN_PATH
 echo ${LINK_FILE}" --bitbar" >> $PLUGIN_PATH
 chmod a+x $PLUGIN_PATH
