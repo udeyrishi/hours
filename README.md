@@ -77,3 +77,6 @@ $ hours --payment 34.5 --debug
 ### License
 
 [Apache v2.0](https://github.com/udeyrishi/hour_logger/blob/master/LICENSE)
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/udeyrishi/hour_logger/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
