@@ -85,8 +85,8 @@ def make_executable(path):
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IEXEC)
 
-def generate_open_logfile_script():
-    if not os.path.isfile(OPEN_LOG_SCRIPT_PATH):
+def generate_open_logfile_script(force=False):
+    if not os.path.isfile(OPEN_LOG_SCRIPT_PATH) or force:
         with open(OPEN_LOG_SCRIPT_PATH, 'w') as script:
             script_contents = '#!/bin/bash\n'
 
@@ -247,6 +247,13 @@ class ConfigMode(Mode):
 
         with open(CONFIG_FILE_PATH, 'w') as config_file:
             json.dump(self.__config, config_file, indent=4)
+
+        self.__fix_scripts()
+
+    def __fix_scripts(self):
+        # Fix all the scripts that might have become invalid by changing
+        # config file
+        generate_open_logfile_script(force=True)
 
     def __parse_config_args(self, config_args):
         if len(config_args) % 2 is not 0:
