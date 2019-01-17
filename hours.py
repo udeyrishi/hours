@@ -1,71 +1,70 @@
 #!/usr/bin/env python3
 
 from argparse import ArgumentParser
-import json
-from pathlib import Path
+import csv
 import os
 from distutils.util import strtobool
 import sys
 
-CONFIG_FILE_PATH = os.path.join(Path.home(), '.hour_logger', 'config.json')
+LOG_FILE_PATH = os.path.join(os.path.expanduser('~'), '.hour_logger', 'log.csv')
+WAGE_EVENT = 'WAGE_SET'
 
 class ModeFailException(Exception):
     pass
 
-def script_name():
-    return sys.argv[0]
-
-def prompt_until_success(question, parser_fn, default=None):
+def prompt_until_success(question, parser_fn):
     while True:
         print(question, end='')
         try:
             return parser_fn(input())
         except ValueError:
-            if default is not None:
-                return default
-            else:
-                print('Not a valid response.')
+            print('Not a valid response.')
 
-def query_yes_no(question, default=True):
-    prompt = f" [{'Y' if default else 'y'}/{'n' if default else 'N'}] "
-    return prompt_until_success(question=question + prompt, parser_fn=lambda x: strtobool(x) == 1, default=default)
-
-def new_config(file_path):
-    config = {'wage': prompt_until_success(question='What is your hourly wage? ', parser_fn=float)}
-
-    if not os.path.exists(os.path.dirname(file_path)):
-        os.makedirs(os.path.dirname(file_path))
-
-    with open(file_path, 'w') as config_file:
-        json.dump(config, config_file)
-
-def needs_config(fn):
+def ensure_wage(fn):
     def wrapped(*args, **kwargs):
-        if not os.path.isfile(CONFIG_FILE_PATH):
-            should_configure = query_yes_no(f"Looks like you've never configured {script_name()} before. Would you like to do so now?")
+        if os.path.isfile(LOG_FILE_PATH):
+            has_wage = False
+            with open(LOG_FILE_PATH, 'r') as log_file:
+                csv_reader = csv.reader(log_file)
+                for log in csv_reader:
+                    if log[0] == WAGE_EVENT:
+                        has_wage = True
+                        break
+            if not has_wage:
+                raise ModeFailException(f'Config file at {LOG_FILE_PATH} is corrupted. Try fixing or deleting it.')
+        else:
+            should_configure = prompt_until_success(question=f'Looks like you have never configured {sys.argv[0]} before. Would you like to do so now? [y/n] ', parser_fn=lambda x: strtobool(x) == 1)
             if not should_configure:
-                raise ModeFailException(f'{script_name()} cannot run without configuring.')
+                raise ModeFailException(f'{sys.argv[0]} cannot run without configuring.')
 
-            new_config(CONFIG_FILE_PATH)
-            print(f'Config file saved at: {CONFIG_FILE_PATH}.')
+            wage = prompt_until_success(question='What is your hourly wage? ', parser_fn=float)
+
+            if not os.path.exists(os.path.dirname(LOG_FILE_PATH)):
+                os.makedirs(os.path.dirname(LOG_FILE_PATH))
+
+            with open(LOG_FILE_PATH, 'w') as log_file:
+                csv_writer = csv.writer(log_file)
+                csv_writer.writerow([WAGE_EVENT, wage])
+
+            print(f'Config log file created at: {LOG_FILE_PATH}.')
 
         fn(*args, **kwargs)
 
     return wrapped
 
-@needs_config
+@ensure_wage
 def payment(amount):
     print(f'reached payment {amount}')
 
-@needs_config
+@ensure_wage
 def begin():
     print('reached begin')
 
-@needs_config
+@ensure_wage
 def end():
     print('reached end')
 
-@needs_config
+@ensure_wage
 def status():
     print('reached status')
 
