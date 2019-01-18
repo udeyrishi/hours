@@ -2,7 +2,6 @@
 
 from argparse import ArgumentParser, ArgumentTypeError
 import csv
-import datetime
 from enum import Enum, auto
 import os
 from distutils.util import strtobool
@@ -72,7 +71,9 @@ class LogReport:
             duration = time.time() - self.current_shift_started_at
             if duration < 0:
                 raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; the ongoing shift seems to have been started in the future.')
-            return duration
+            m, s = divmod(duration, 60)
+            h, m = divmod(m, 60)
+            return f'{int(h):02d}:{int(m):02d}:{int(s):02d}'
 
 def prepare_report():
     report = LogReport()
@@ -228,7 +229,7 @@ def register_mode(expected_in_shift=None, if_shift_err=None, help=None):
 @register_mode(help='see the current status summary in a bitbar compatible syntax')
 def bitbar(report: LogReport):
     if report.in_shift:
-        print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
+        print(f'🕒 {report.current_shift_duration}')
     else:
         print('🏠')
 
@@ -250,7 +251,7 @@ def bitbar(report: LogReport):
 @register_mode(help='see the current status summary info')
 def info(report: LogReport):
     if report.in_shift:
-        print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}', end='')
+        print(f'🕒 {report.current_shift_duration}', end='')
     else:
         print('🏠', end='')
 
