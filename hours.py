@@ -109,16 +109,18 @@ def write_log(event, value):
         csv_writer = csv.writer(log_file)
         csv_writer.writerow([event.name, value])
 
-def check_log_integrity(expected_in_shift=None, expected_in_shift_msg=None):
-    if (expected_in_shift is None and expected_in_shift_msg is not None) or (expected_in_shift is not None and expected_in_shift_msg is None):
-        raise ValueError('Either both, or neither of expected_in_shift and expected_in_shift_msg should be null.')
+def read_sanitized_report(expected_in_shift=None, failure_msg=None):
+    if (expected_in_shift is None and failure_msg is not None) or (expected_in_shift is not None and failure_msg is None):
+        raise ValueError('Either both, or neither of expected_in_shift and failure_msg should be null.')
 
     report = prepare_report()
     if not report.has_active_wage:
         raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; no {LogEvent.WAGE_SET.name} events found. Try fixing or deleting it.')
 
     if expected_in_shift is not None and report.in_shift != expected_in_shift:
-        raise ModeFailException(expected_in_shift_msg)
+        raise ModeFailException(failure_msg)
+
+    return report
 
 def configure_as_new():
     should_configure = prompt_until_success(question=f'Looks like you have never configured {sys.argv[0]} before. Would you like to do so now? [y/n] ', parser_fn=lambda x: strtobool(x) == 1)
@@ -134,38 +136,38 @@ def configure_as_new():
 
     print(f'Log log file created at: {LOG_FILE_PATH}.')
 
-def ensure_integrity(expected_in_shift=None, msg=None):
+    return LogReport(active_wage=wage)
+
+def mode(expected_in_shift=None, failure_msg=None):
     def _ensure_integrity(fn):
         def wrapper(*args, **kwargs):
             if os.path.isfile(LOG_FILE_PATH):
-                check_log_integrity(expected_in_shift, msg)
+                report = read_sanitized_report(expected_in_shift, failure_msg)
             else:
-                configure_as_new()
-            fn(*args, **kwargs)
+                report = configure_as_new()
+            fn(*(args + (report,)), **kwargs)
 
         return wrapper
     return _ensure_integrity
 
-@ensure_integrity(expected_in_shift=False, msg='Cannot change the wage while a shift is ongoing.')
-def change_wage(wage):
+@mode(expected_in_shift=False, failure_msg='Cannot change the wage while a shift is ongoing.')
+def change_wage(wage, report):
     write_log(LogEvent.WAGE_SET, wage)
 
-@ensure_integrity()
-def payment(amount):
+@mode()
+def payment(amount, report):
     write_log(LogEvent.PAYMENT, amount)
 
-@ensure_integrity(expected_in_shift=False, msg='Cannot begin a shift while one is ongoing.')
-def begin():
+@mode(expected_in_shift=False, failure_msg='Cannot begin a shift while one is ongoing.')
+def begin(report):
     write_log(LogEvent.BEGIN, time.time())
 
-@ensure_integrity(expected_in_shift=True, msg='Cannot end a shift when none is ongoing.')
-def end():
+@mode(expected_in_shift=True, failure_msg='Cannot end a shift when none is ongoing.')
+def end(report):
     write_log(LogEvent.END, time.time())
 
-@ensure_integrity()
-def status():
-    report = prepare_report()
-
+@mode()
+def status(report):
     if report.in_shift:
         print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
     else:
