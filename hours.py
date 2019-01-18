@@ -138,49 +138,6 @@ def configure_as_new():
 
     return LogReport(active_wage=wage)
 
-def mode(expected_in_shift=None, failure_msg=None):
-    def _ensure_integrity(fn):
-        def wrapper(*args, **kwargs):
-            if os.path.isfile(LOG_FILE_PATH):
-                report = read_sanitized_report(expected_in_shift, failure_msg)
-            else:
-                report = configure_as_new()
-            fn(*(args + (report,)), **kwargs)
-
-        return wrapper
-    return _ensure_integrity
-
-@mode(expected_in_shift=False, failure_msg='Cannot change the wage while a shift is ongoing.')
-def wage(wage, report):
-    write_log(LogEvent.WAGE_SET, wage)
-
-@mode()
-def payment(amount, report):
-    write_log(LogEvent.PAYMENT, amount)
-
-@mode(expected_in_shift=False, failure_msg='Cannot begin a shift while one is ongoing.')
-def begin(report):
-    write_log(LogEvent.BEGIN, time.time())
-
-@mode(expected_in_shift=True, failure_msg='Cannot end a shift when none is ongoing.')
-def end(report):
-    write_log(LogEvent.END, time.time())
-
-@mode()
-def status(report):
-    if report.in_shift:
-        print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
-    else:
-        print('🏠')
-    
-    if report.has_outstanding_payment:
-        print('---')
-        if report.outstanding_payment > 0:
-            print('💰 %.2f pending' % report.outstanding_payment)
-        else:
-            print('💰 %.2f overpaid' % -report.outstanding_payment)
-
-################################### Code for setting up the command line tool ###################################
 class Mode:
     def __init__(self, name, runner, help, arg_type=None):
         self.name = name
@@ -194,13 +151,69 @@ def positive_float(val):
         raise ArgumentTypeError(f'{val} is a negative number.')
     return num
 
-MODES = [
-    Mode(name='status', runner=status, help='see the current status summary'),
-    Mode(name='begin', runner=begin, help='begin a shift'),
-    Mode(name='end', runner=end, help='end a shift'),
-    Mode(name='payment', runner=payment, arg_type=positive_float, help='add a received payment; must be non-negative'),
-    Mode(name='wage', runner=wage, arg_type=positive_float, help='update the hourly wage moving forward; must be non-negative'),
-]
+MODES = []
+
+def mode(expected_in_shift=None, failure_msg=None, help=None):
+    class ModeParamData:
+        def __init__(self, index, name, type):
+            self.index = index
+            self.name = name
+            self.type = type
+
+    def _ensure_integrity(fn):
+        assert len(fn.__annotations__) <= 2, 'mode functions can only either accept 1 command line arg, the current log report, or both.'
+        
+        report_param_data = next((ModeParamData(index=i, name=param[0], type=param[1]) for i, param in enumerate(fn.__annotations__.items()) if param[1] == LogReport), None)
+        cli_param_data = next((ModeParamData(index=i, name=param[0], type=param[1]) for i, param in enumerate(fn.__annotations__.items()) if param[1] != LogReport), None)
+
+        def wrapper(*args):
+            if os.path.isfile(LOG_FILE_PATH):
+                report = read_sanitized_report(expected_in_shift, failure_msg)
+            else:
+                report = configure_as_new()
+
+            kwargs = dict()
+            if cli_param_data is not None:
+                kwargs[cli_param_data.name] = args[0]
+
+            if report_param_data is not None:
+                kwargs[report_param_data.name] = report
+            
+            fn(**kwargs)
+
+        MODES.append(Mode(name=fn.__name__, runner=wrapper, help=help, arg_type=cli_param_data.type if cli_param_data is not None else None))
+        return wrapper
+    return _ensure_integrity
+
+@mode(expected_in_shift=False, failure_msg='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward; must be non-negative')
+def wage(wage: positive_float):
+    write_log(LogEvent.WAGE_SET, wage)
+
+@mode(help='add a received payment; must be non-negative')
+def payment(amount: positive_float):
+    write_log(LogEvent.PAYMENT, amount)
+
+@mode(expected_in_shift=False, failure_msg='Cannot begin a shift while one is ongoing.', help='begin a shift')
+def begin():
+    write_log(LogEvent.BEGIN, time.time())
+
+@mode(expected_in_shift=True, failure_msg='Cannot end a shift when none is ongoing.', help='end a shift')
+def end():
+    write_log(LogEvent.END, time.time())
+
+@mode(help='see the current status summary')
+def status(report: LogReport):
+    if report.in_shift:
+        print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
+    else:
+        print('🏠')
+    
+    if report.has_outstanding_payment:
+        print('---')
+        if report.outstanding_payment > 0:
+            print('💰 %.2f pending' % report.outstanding_payment)
+        else:
+            print('💰 %.2f overpaid' % -report.outstanding_payment)
 
 DEFAULT_MODE = MODES[0]
 
