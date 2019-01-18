@@ -147,7 +147,7 @@ def configure_as_new():
     if not should_configure:
         raise ModeFailException(f'{script_name()} cannot run without configuring.')
 
-    wage = prompt_until_success(question='What is your hourly wage? ', parser_fn=float)
+    wage = prompt_until_success(question='What is your hourly wage? ', parser_fn=positive_float)
 
     if not os.path.exists(os.path.dirname(LOG_FILE_PATH)):
         os.makedirs(os.path.dirname(LOG_FILE_PATH))
@@ -257,6 +257,10 @@ def bitbar(report: LogReport):
     else:
         print(f'Start Shift | refresh=true bash="{script_path()}" param1=-s terminal=false')
 
+    print('---')
+    print(f'Update wage | refresh=true bash="{script_path()}" param1=-w terminal=true')
+    print(f'Receive payment | refresh=true bash="{script_path()}" param1=-p terminal=true')
+
     print(f'Open log | refresh=true bash="less" param1={LOG_FILE_PATH} terminal=true')
 
     if report.has_outstanding_payment:
@@ -281,12 +285,14 @@ def info(report: LogReport):
             print(f'💰 {-report.outstanding_payment:.2f} overpaid', end='')
     print()
 
-@register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward; must be non-negative')
-def wage(wage: positive_float):
+@register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward')
+def wage():
+    wage = prompt_until_success(question='What is your new hourly wage? ', parser_fn=positive_float)
     write_log(LogEvent.WAGE_SET, wage)
 
-@register_mode(help='add a received payment; must be non-negative')
-def payment(amount: positive_float):
+@register_mode(help='add a received payment')
+def payment():
+    amount = prompt_until_success(question='How much amount did you receive? ', parser_fn=positive_float)
     write_log(LogEvent.PAYMENT, amount)
 
 @register_mode(expected_in_shift=False, if_shift_err='Cannot start a shift while one is ongoing.', help='start a shift')
