@@ -160,10 +160,9 @@ def configure_as_new():
 
 class App:
     class Mode:
-        def __init__(self, name, runner, help, arg_type=None):
+        def __init__(self, name, runner, help):
             self.name = name
             self.runner = runner
-            self.arg_type = arg_type
             self.help = help
 
     def __init__(self):
@@ -184,21 +183,14 @@ class App:
         group = parser.add_mutually_exclusive_group()
 
         for mode in self.registered_modes:
-            if mode.arg_type is None:
-                group.add_argument(f'-{mode.name[0]}', f'--{mode.name}', action='store_true', help=mode.help)
-            else: 
-                group.add_argument(f'-{mode.name[0]}', f'--{mode.name}', type=mode.arg_type, help=mode.help)
+            group.add_argument(f'-{mode.name[0]}', f'--{mode.name}', action='store_true', help=mode.help)
 
         args = parser.parse_args()
 
         matching_mode = next((mode for mode in self.registered_modes if not not getattr(args, mode.name)), self.default_mode)
         try:
-            if matching_mode.arg_type is None:
-                matching_mode.runner()
-                return 0
-            else:
-                matching_mode.runner(getattr(args, matching_mode.name))
-                return 0
+            matching_mode.runner()
+            return 0
         except ModeFailException as e:
             print(str(e))
             return 3
@@ -207,16 +199,10 @@ app = App()
 
 def register_mode(expected_in_shift=None, if_shift_err=None, help=None, configure_if_needed=True):
     def _register_mode(mode_fn):
-        class ModeParamData:
-            def __init__(self, index, name, type):
-                self.index = index
-                self.name = name
-                self.type = type
-        
-        assert len(mode_fn.__annotations__) <= 2, 'mode functions can only either accept 1 command line arg, the current log report, or both.'
-        
-        report_param_data = next((ModeParamData(index=i, name=param[0], type=param[1]) for i, param in enumerate(mode_fn.__annotations__.items()) if param[1] == LogReport), None)
-        cli_param_data = next((ModeParamData(index=i, name=param[0], type=param[1]) for i, param in enumerate(mode_fn.__annotations__.items()) if param[1] != LogReport), None)
+        report_param_name = next((param[0] for param in mode_fn.__annotations__.items() if param[1] == LogReport), None)
+        num_other_params = len([param for param in mode_fn.__annotations__.items() if param[1] != LogReport])
+        if num_other_params > 0:
+            raise ValueError('mode functions can only optionally request the current report. Everything else must be gathered via user input for bitbar compatibility.')
 
         def wrapper(*args):
             if os.path.isfile(LOG_FILE_PATH):
@@ -227,15 +213,12 @@ def register_mode(expected_in_shift=None, if_shift_err=None, help=None, configur
                 report = None
 
             kwargs = dict()
-            if cli_param_data is not None:
-                kwargs[cli_param_data.name] = args[0]
-
-            if report_param_data is not None:
-                kwargs[report_param_data.name] = report
+            if report_param_name is not None:
+                kwargs[report_param_name] = report
             
             mode_fn(**kwargs)
 
-        app.add_mode(App.Mode(name=mode_fn.__name__, runner=wrapper, help=help, arg_type=cli_param_data.type if cli_param_data is not None else None))
+        app.add_mode(App.Mode(name=mode_fn.__name__, runner=wrapper, help=help))
         return wrapper
     return _register_mode
 
