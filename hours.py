@@ -172,6 +172,10 @@ class App:
     def add_mode(self, mode):
         self.registered_modes.append(mode)
 
+    @property
+    def default_mode(self):
+        return self.registered_modes[0]
+
     def run(self):
         if len(self.registered_modes) == 0:
             raise ValueError('No modes were registered')
@@ -187,7 +191,7 @@ class App:
 
         args = parser.parse_args()
 
-        matching_mode = next((mode for mode in self.registered_modes if not not getattr(args, mode.name)), self.registered_modes[0])
+        matching_mode = next((mode for mode in self.registered_modes if not not getattr(args, mode.name)), self.default_mode)
         try:
             if matching_mode.arg_type is None:
                 matching_mode.runner()
