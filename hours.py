@@ -166,28 +166,21 @@ class App:
             self.help = help
 
     def __init__(self):
-        self.registered_modes = []
-
-    def add_mode(self, mode):
-        self.registered_modes.append(mode)
-
-    @property
-    def default_mode(self):
-        return self.registered_modes[0]
+        self.__registered_modes = []
 
     def run(self):
-        if len(self.registered_modes) == 0:
-            raise ValueError('No modes were registered')
+        assert len(self.__registered_modes) > 0, 'No modes were registered'
 
         parser = ArgumentParser(description='A tool for managing your work hours and the money you made.')
         group = parser.add_mutually_exclusive_group()
 
-        for mode in self.registered_modes:
+        for mode in self.__registered_modes:
             group.add_argument(f'-{mode.name[0]}', f'--{mode.name}', action='store_true', help=mode.help)
 
         args = parser.parse_args()
 
-        matching_mode = next((mode for mode in self.registered_modes if not not getattr(args, mode.name)), self.default_mode)
+        # Use the 0th mode as the default
+        matching_mode = next((mode for mode in self.__registered_modes if not not getattr(args, mode.name)), self.__registered_modes[0])
         try:
             matching_mode.runner()
             return 0
@@ -195,34 +188,33 @@ class App:
             print(str(e))
             return 3
 
+    def register_mode(self, expected_in_shift=None, if_shift_err=None, help=None, configure_if_needed=True):
+        def _register_mode(mode_fn):
+            report_param_name = next((param[0] for param in mode_fn.__annotations__.items() if param[1] == LogReport), None)
+            num_other_params = len([param for param in mode_fn.__annotations__.items() if param[1] != LogReport])
+            assert num_other_params == 0, 'mode functions can only optionally request the current report. Everything else must be gathered via user input for bitbar compatibility.'
+
+            def wrapper():
+                if os.path.isfile(LOG_FILE_PATH):
+                    report = read_sanitized_report(expected_in_shift, if_shift_err)
+                elif configure_if_needed:
+                    report = configure_as_new()
+                else:
+                    report = None
+
+                kwargs = dict()
+                if report_param_name is not None:
+                    kwargs[report_param_name] = report
+                
+                mode_fn(**kwargs)
+
+            self.__registered_modes.append(App.Mode(name=mode_fn.__name__, runner=wrapper, help=help))
+            return wrapper
+        return _register_mode
+
 app = App()
 
-def register_mode(expected_in_shift=None, if_shift_err=None, help=None, configure_if_needed=True):
-    def _register_mode(mode_fn):
-        report_param_name = next((param[0] for param in mode_fn.__annotations__.items() if param[1] == LogReport), None)
-        num_other_params = len([param for param in mode_fn.__annotations__.items() if param[1] != LogReport])
-        if num_other_params > 0:
-            raise ValueError('mode functions can only optionally request the current report. Everything else must be gathered via user input for bitbar compatibility.')
-
-        def wrapper(*args):
-            if os.path.isfile(LOG_FILE_PATH):
-                report = read_sanitized_report(expected_in_shift, if_shift_err)
-            elif configure_if_needed:
-                report = configure_as_new()
-            else:
-                report = None
-
-            kwargs = dict()
-            if report_param_name is not None:
-                kwargs[report_param_name] = report
-            
-            mode_fn(**kwargs)
-
-        app.add_mode(App.Mode(name=mode_fn.__name__, runner=wrapper, help=help))
-        return wrapper
-    return _register_mode
-
-@register_mode(help='see the current status summary in a bitbar compatible syntax', configure_if_needed=False)
+@app.register_mode(help='see the current status summary in a bitbar compatible syntax', configure_if_needed=False)
 def bitbar(report: LogReport):
     if report is None:
         print(f'⚙️{script_name()} needs a one-time configuration.')
@@ -253,7 +245,7 @@ def bitbar(report: LogReport):
         else:
             print(f'💰 {-report.outstanding_payment:.2f} overpaid')
 
-@register_mode(help='see the current status summary info')
+@app.register_mode(help='see the current status summary info')
 def info(report: LogReport):
     if report.in_shift:
         print(f'🕒 {report.current_shift_duration}', end='')
@@ -268,21 +260,21 @@ def info(report: LogReport):
             print(f'💰 {-report.outstanding_payment:.2f} overpaid', end='')
     print()
 
-@register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward')
+@app.register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward')
 def wage():
     wage = prompt_until_success(question='What is your new hourly wage? ', parser_fn=positive_float)
     write_log(LogEvent.WAGE_SET, wage)
 
-@register_mode(help='add a received payment')
+@app.register_mode(help='add a received payment')
 def payment():
     amount = prompt_until_success(question='How much amount did you receive? ', parser_fn=positive_float)
     write_log(LogEvent.PAYMENT, amount)
 
-@register_mode(expected_in_shift=False, if_shift_err='Cannot start a shift while one is ongoing.', help='start a shift')
+@app.register_mode(expected_in_shift=False, if_shift_err='Cannot start a shift while one is ongoing.', help='start a shift')
 def start():
     write_log(LogEvent.START, time.time())
 
-@register_mode(expected_in_shift=True, if_shift_err='Cannot end a shift when none is ongoing.', help='end a shift')
+@app.register_mode(expected_in_shift=True, if_shift_err='Cannot end a shift when none is ongoing.', help='end a shift')
 def end():
     write_log(LogEvent.END, time.time())
 
