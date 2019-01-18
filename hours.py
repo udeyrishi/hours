@@ -32,7 +32,7 @@ def script_name():
 class LogEvent(Enum):
     WAGE_SET = auto()
     PAYMENT = auto()
-    BEGIN = auto()
+    START = auto()
     END = auto()
 
 def positive_float(val):
@@ -82,15 +82,15 @@ def prepare_report():
             report.active_wage = value
         elif event == LogEvent.PAYMENT:
             report.total_paid += value
-        elif event == LogEvent.BEGIN: 
+        elif event == LogEvent.START: 
             if report.in_shift:
-                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; found two successive {LogEvent.BEGIN.name}s without a {LogEvent.END.name} in between. Try fixing or deleting it.')
+                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; found two successive {LogEvent.START.name}s without a {LogEvent.END.name} in between. Try fixing or deleting it.')
             if report.active_wage is None:
                 raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; A shift {event.name} event occurred before any {LogEvent.WAGE_SET.name} event.')
             report.current_shift_started_at = value
         elif event == LogEvent.END:
             if not report.in_shift:
-                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; found two successive {LogEvent.END.name}s without a {LogEvent.BEGIN.name} in between. Try fixing or deleting it.')
+                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; found two successive {LogEvent.END.name}s without a {LogEvent.START.name} in between. Try fixing or deleting it.')
             if report.active_wage is None:
                 raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; A shift {event.name} event occurred before any {LogEvent.WAGE_SET.name} event.')
             
@@ -225,8 +225,8 @@ def register_mode(expected_in_shift=None, if_shift_err=None, help=None):
         return wrapper
     return _register_mode
 
-@register_mode(help='see the current status summary')
-def status(report: LogReport):
+@register_mode(help='see the current status summary in a bitbar compatible syntax')
+def bitbar(report: LogReport):
     if report.in_shift:
         print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
     else:
@@ -234,9 +234,11 @@ def status(report: LogReport):
 
     print('---')
     if report.in_shift:
-        print(f"End Shift | refresh=true bash='{script_path()} --end' terminal=false")
+        print(f'End Shift | refresh=true bash="{script_path()}" param1=--end terminal=false')
     else:
-        print(f"Start Shift | refresh=true bash='{script_path()} --start' terminal=false")
+        print(f'Start Shift | refresh=true bash="{script_path()}" param1=--start terminal=false')
+
+    print(f'Open log | refresh=true bash="less" param1={LOG_FILE_PATH} terminal=true')
 
     if report.has_outstanding_payment:
         print('---')
@@ -244,6 +246,21 @@ def status(report: LogReport):
             print(f'💰 {report.outstanding_payment:.2f} pending')
         else:
             print(f'💰 {-report.outstanding_payment:.2f} overpaid')
+
+@register_mode(help='see the current status summary info')
+def info(report: LogReport):
+    if report.in_shift:
+        print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}', end='')
+    else:
+        print('🏠', end='')
+
+    if report.has_outstanding_payment:
+        print(' | ')
+        if report.outstanding_payment > 0:
+            print(f'💰 {report.outstanding_payment:.2f} pending', end='')
+        else:
+            print(f'💰 {-report.outstanding_payment:.2f} overpaid', end='')
+    print()
 
 @register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward; must be non-negative')
 def wage(wage: positive_float):
@@ -253,9 +270,9 @@ def wage(wage: positive_float):
 def payment(amount: positive_float):
     write_log(LogEvent.PAYMENT, amount)
 
-@register_mode(expected_in_shift=False, if_shift_err='Cannot begin a shift while one is ongoing.', help='begin a shift')
-def begin():
-    write_log(LogEvent.BEGIN, time.time())
+@register_mode(expected_in_shift=False, if_shift_err='Cannot start a shift while one is ongoing.', help='start a shift')
+def start():
+    write_log(LogEvent.START, time.time())
 
 @register_mode(expected_in_shift=True, if_shift_err='Cannot end a shift when none is ongoing.', help='end a shift')
 def end():
