@@ -23,6 +23,12 @@ def prompt_until_success(question, parser_fn):
         except ValueError:
             print('Not a valid response.')
 
+def script_path():
+    return os.path.realpath(__file__)
+
+def script_name():
+    return os.path.basename(__file__)
+
 class LogEvent(Enum):
     WAGE_SET = auto()
     PAYMENT = auto()
@@ -129,9 +135,9 @@ def read_sanitized_report(expected_in_shift=None, if_shift_err=None):
     return report
 
 def configure_as_new():
-    should_configure = prompt_until_success(question=f'Looks like you have never configured {sys.argv[0]} before. Would you like to do so now? [y/n] ', parser_fn=lambda x: strtobool(x) == 1)
+    should_configure = prompt_until_success(question=f'Looks like you have never configured {script_name()} before. Would you like to do so now? [y/n] ', parser_fn=lambda x: strtobool(x) == 1)
     if not should_configure:
-        raise ModeFailException(f'{sys.argv[0]} cannot run without configuring.')
+        raise ModeFailException(f'{script_name()} cannot run without configuring.')
 
     wage = prompt_until_success(question='What is your hourly wage? ', parser_fn=float)
 
@@ -219,6 +225,26 @@ def register_mode(expected_in_shift=None, if_shift_err=None, help=None):
         return wrapper
     return _register_mode
 
+@register_mode(help='see the current status summary')
+def status(report: LogReport):
+    if report.in_shift:
+        print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
+    else:
+        print('🏠')
+
+    print('---')
+    if report.in_shift:
+        print(f"End Shift | refresh=true bash='{script_path()} --end' terminal=false")
+    else:
+        print(f"Start Shift | refresh=true bash='{script_path()} --start' terminal=false")
+
+    if report.has_outstanding_payment:
+        print('---')
+        if report.outstanding_payment > 0:
+            print(f'💰 {report.outstanding_payment:.2f} pending')
+        else:
+            print(f'💰 {-report.outstanding_payment:.2f} overpaid')
+
 @register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward; must be non-negative')
 def wage(wage: positive_float):
     write_log(LogEvent.WAGE_SET, wage)
@@ -234,20 +260,6 @@ def begin():
 @register_mode(expected_in_shift=True, if_shift_err='Cannot end a shift when none is ongoing.', help='end a shift')
 def end():
     write_log(LogEvent.END, time.time())
-
-@register_mode(help='see the current status summary')
-def status(report: LogReport):
-    if report.in_shift:
-        print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
-    else:
-        print('🏠')
-    
-    if report.has_outstanding_payment:
-        print('---')
-        if report.outstanding_payment > 0:
-            print(f'💰 {report.outstanding_payment:.2f} pending')
-        else:
-            print(f'💰 {-report.outstanding_payment:.2f} overpaid')
 
 if __name__ == '__main__':
     sys.exit(app.run())
