@@ -29,6 +29,71 @@ class LogEvent(Enum):
     BEGIN = auto()
     END = auto()
 
+class LogReport:
+    def __init__(self, active_wage=None, current_shift_started_at=None, total_earned=0, total_paid=0):
+        self.active_wage = active_wage
+        self.current_shift_started_at = current_shift_started_at
+        self.total_earned = total_earned
+        self.total_paid = total_paid
+
+    @property
+    def outstanding_payment(self):
+        return self.total_earned - self.total_paid
+
+    @property
+    def has_outstanding_payment(self):
+        return not isclose(self.total_earned, self.total_paid, abs_tol=0.01)
+
+    @property
+    def in_shift(self):
+        return self.current_shift_started_at != None
+
+    @property
+    def has_active_wage(self):
+        return self.active_wage != None
+
+    @property
+    def current_shift_duration(self):
+        if self.current_shift_started_at is None:
+            return None
+        else:
+            duration = time.time() - self.current_shift_started_at
+            if duration < 0:
+                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; the ongoing shift seems to have been started in the future.')
+            return duration
+
+def prepare_report():
+    report = LogReport()
+    
+    for event, value in read_log():
+        if event == LogEvent.WAGE_SET:
+            report.active_wage = value
+        elif event == LogEvent.PAYMENT:
+            report.total_paid += value
+        elif event == LogEvent.BEGIN: 
+            if report.in_shift:
+                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; found two successive {LogEvent.BEGIN.name}s without a {LogEvent.END.name} in between. Try fixing or deleting it.')
+            if report.active_wage is None:
+                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; A shift {event.name} event occurred before any {LogEvent.WAGE_SET.name} event.')
+            report.current_shift_started_at = value
+        elif event == LogEvent.END:
+            if not report.in_shift:
+                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; found two successive {LogEvent.END.name}s without a {LogEvent.BEGIN.name} in between. Try fixing or deleting it.')
+            if report.active_wage is None:
+                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; A shift {event.name} event occurred before any {LogEvent.WAGE_SET.name} event.')
+            
+            seconds = value - report.current_shift_started_at
+            report.current_shift_started_at = None
+            if (seconds < 0):
+                raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; A shift\'s duration cannot be negative. Try fixing or deleting it.')
+            
+            report.total_earned += (seconds/60/60) * report.active_wage
+        else:
+            assert False, f'Support for new LogEvent {event.name} not added.'
+
+    return report
+
+
 def read_log():
     with open(LOG_FILE_PATH, 'r') as log_file:
         csv_reader = csv.reader(log_file)
@@ -47,26 +112,12 @@ def write_log(event, value):
 def check_log_integrity(expected_in_shift=None, expected_in_shift_msg=None):
     if (expected_in_shift is None and expected_in_shift_msg is not None) or (expected_in_shift is not None and expected_in_shift_msg is None):
         raise ValueError('Either both, or neither of expected_in_shift and expected_in_shift_msg should be null.')
-    has_wage = False
-    in_shift = False
 
-    for event, _ in read_log():
-        if event == LogEvent.WAGE_SET:
-            has_wage = True
-        elif event == LogEvent.PAYMENT:
-            continue
-        elif event == LogEvent.BEGIN and in_shift:
-            raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; found two successive {LogEvent.BEGIN.name}s without a {LogEvent.END.name} in between. Try fixing or deleting it.')
-        elif event == LogEvent.END and not in_shift:
-            raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; found two successive {LogEvent.END.name}s without a {LogEvent.BEGIN.name} in between. Try fixing or deleting it.')
-        else:
-            assert event == LogEvent.BEGIN or event == LogEvent.END, f'Support for new LogEvent {event.name} not added.'
-            in_shift = not in_shift
+    report = prepare_report()
+    if not report.has_active_wage:
+        raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; no {LogEvent.WAGE_SET.name} events found. Try fixing or deleting it.')
 
-    if not has_wage:
-        raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; no {LogEvent.WAGE_SET} events found. Try fixing or deleting it.')
-
-    if expected_in_shift is not None and in_shift != expected_in_shift:
+    if expected_in_shift is not None and report.in_shift != expected_in_shift:
         raise ModeFailException(expected_in_shift_msg)
 
 def configure_as_new():
@@ -113,44 +164,19 @@ def end():
 
 @ensure_integrity()
 def status():
-    total_earned = 0
-    total_paid = 0
-    active_wage = None
-    shift_started_at = None
+    report = prepare_report()
 
-    for event, value in read_log():
-        if event == LogEvent.WAGE_SET:
-            active_wage = value
-        elif event == LogEvent.PAYMENT:
-            total_paid += value
-        elif event == LogEvent.BEGIN:
-            shift_started_at = value
-        elif event == LogEvent.END:
-            seconds = value - shift_started_at
-            shift_started_at = None
-            if (seconds < 0):
-                raise ModeFailException('A shift\'s duration cannot be negative.')
-            
-            total_earned += (seconds/60/60) * active_wage
-        else:
-            assert False, f'Support for LogEvent {event} not added'
-
-    if shift_started_at is None:
-        print('🏠')
+    if report.in_shift:
+        print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
     else:
-        print(f'🕒 {datetime.timedelta(seconds=time.time() - shift_started_at)}')
+        print('🏠')
     
-    if isclose(total_earned, total_paid, abs_tol=0.01):
-        return
-
-    to_be_paid = total_earned - total_paid
-    if to_be_paid > 0:
+    if report.has_outstanding_payment:
         print('---')
-        print('💰 %.2f pending' % to_be_paid)
-    elif to_be_paid < 0:
-        print('---')
-        print('💰 %.2f overpaid' % -to_be_paid)
-
+        if report.outstanding_payment > 0:
+            print('💰 %.2f pending' % report.outstanding_payment)
+        else:
+            print('💰 %.2f overpaid' % -report.outstanding_payment)
 
 ################################### Code for setting up the command line tool ###################################
 class Mode:
