@@ -245,9 +245,9 @@ def status(report: LogReport):
     if report.has_outstanding_payment:
         print('---')
         if report.outstanding_payment > 0:
-            print('💰 %.2f pending' % report.outstanding_payment)
+            print(f'💰 {report.outstanding_payment:.2f} pending')
         else:
-            print('💰 %.2f overpaid' % -report.outstanding_payment)
+            print(f'💰 {-report.outstanding_payment:.2f} overpaid')
 
 if __name__ == '__main__':
     sys.exit(app.run())
