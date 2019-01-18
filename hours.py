@@ -29,6 +29,12 @@ class LogEvent(Enum):
     BEGIN = auto()
     END = auto()
 
+def positive_float(val):
+    num = float(val)
+    if num < 0:
+        raise ValueError(f'{val} is a negative number.')
+    return num
+
 class LogReport:
     def __init__(self, active_wage=None, current_shift_started_at=None, total_earned=0, total_paid=0):
         self.active_wage = active_wage
@@ -109,16 +115,16 @@ def write_log(event, value):
         csv_writer = csv.writer(log_file)
         csv_writer.writerow([event.name, value])
 
-def read_sanitized_report(expected_in_shift=None, failure_msg=None):
-    if (expected_in_shift is None and failure_msg is not None) or (expected_in_shift is not None and failure_msg is None):
-        raise ValueError('Either both, or neither of expected_in_shift and failure_msg should be null.')
+def read_sanitized_report(expected_in_shift=None, if_shift_err=None):
+    if (expected_in_shift is None and if_shift_err is not None) or (expected_in_shift is not None and if_shift_err is None):
+        raise ValueError('Either both, or neither of expected_in_shift and if_shift_err should be null.')
 
     report = prepare_report()
     if not report.has_active_wage:
         raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; no {LogEvent.WAGE_SET.name} events found. Try fixing or deleting it.')
 
     if expected_in_shift is not None and report.in_shift != expected_in_shift:
-        raise ModeFailException(failure_msg)
+        raise ModeFailException(if_shift_err)
 
     return report
 
@@ -138,37 +144,65 @@ def configure_as_new():
 
     return LogReport(active_wage=wage)
 
-class Mode:
-    def __init__(self, name, runner, help, arg_type=None):
-        self.name = name
-        self.runner = runner
-        self.arg_type = arg_type
-        self.help = help
-
-def positive_float(val):
-    num = float(val)
-    if num < 0:
-        raise ArgumentTypeError(f'{val} is a negative number.')
-    return num
-
-MODES = []
-
-def mode(expected_in_shift=None, failure_msg=None, help=None):
-    class ModeParamData:
-        def __init__(self, index, name, type):
-            self.index = index
+class App:
+    class Mode:
+        def __init__(self, name, runner, help, arg_type=None):
             self.name = name
-            self.type = type
+            self.runner = runner
+            self.arg_type = arg_type
+            self.help = help
 
-    def _ensure_integrity(fn):
-        assert len(fn.__annotations__) <= 2, 'mode functions can only either accept 1 command line arg, the current log report, or both.'
+    def __init__(self):
+        self.registered_modes = []
+
+    def add_mode(self, mode):
+        self.registered_modes.append(mode)
+
+    def run(self):
+        if len(self.registered_modes) == 0:
+            raise ValueError('No modes were registered')
+
+        parser = ArgumentParser(description='A tool for managing your work hours and the money you made.')
+        group = parser.add_mutually_exclusive_group()
+
+        for mode in self.registered_modes:
+            if mode.arg_type is None:
+                group.add_argument(f'-{mode.name[0]}', f'--{mode.name}', action='store_true', help=mode.help)
+            else: 
+                group.add_argument(f'-{mode.name[0]}', f'--{mode.name}', type=mode.arg_type, help=mode.help)
+
+        args = parser.parse_args()
+
+        matching_mode = next((mode for mode in self.registered_modes if not not getattr(args, mode.name)), self.registered_modes[0])
+        try:
+            if matching_mode.arg_type is None:
+                matching_mode.runner()
+                return 0
+            else:
+                matching_mode.runner(getattr(args, matching_mode.name))
+                return 0
+        except ModeFailException as e:
+            print(str(e))
+            return 3
+
+app = App()
+
+def register_mode(expected_in_shift=None, if_shift_err=None, help=None):
+    def _register_mode(mode_fn):
+        class ModeParamData:
+            def __init__(self, index, name, type):
+                self.index = index
+                self.name = name
+                self.type = type
         
-        report_param_data = next((ModeParamData(index=i, name=param[0], type=param[1]) for i, param in enumerate(fn.__annotations__.items()) if param[1] == LogReport), None)
-        cli_param_data = next((ModeParamData(index=i, name=param[0], type=param[1]) for i, param in enumerate(fn.__annotations__.items()) if param[1] != LogReport), None)
+        assert len(mode_fn.__annotations__) <= 2, 'mode functions can only either accept 1 command line arg, the current log report, or both.'
+        
+        report_param_data = next((ModeParamData(index=i, name=param[0], type=param[1]) for i, param in enumerate(mode_fn.__annotations__.items()) if param[1] == LogReport), None)
+        cli_param_data = next((ModeParamData(index=i, name=param[0], type=param[1]) for i, param in enumerate(mode_fn.__annotations__.items()) if param[1] != LogReport), None)
 
         def wrapper(*args):
             if os.path.isfile(LOG_FILE_PATH):
-                report = read_sanitized_report(expected_in_shift, failure_msg)
+                report = read_sanitized_report(expected_in_shift, if_shift_err)
             else:
                 report = configure_as_new()
 
@@ -179,29 +213,29 @@ def mode(expected_in_shift=None, failure_msg=None, help=None):
             if report_param_data is not None:
                 kwargs[report_param_data.name] = report
             
-            fn(**kwargs)
+            mode_fn(**kwargs)
 
-        MODES.append(Mode(name=fn.__name__, runner=wrapper, help=help, arg_type=cli_param_data.type if cli_param_data is not None else None))
+        app.add_mode(App.Mode(name=mode_fn.__name__, runner=wrapper, help=help, arg_type=cli_param_data.type if cli_param_data is not None else None))
         return wrapper
-    return _ensure_integrity
+    return _register_mode
 
-@mode(expected_in_shift=False, failure_msg='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward; must be non-negative')
+@register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward; must be non-negative')
 def wage(wage: positive_float):
     write_log(LogEvent.WAGE_SET, wage)
 
-@mode(help='add a received payment; must be non-negative')
+@register_mode(help='add a received payment; must be non-negative')
 def payment(amount: positive_float):
     write_log(LogEvent.PAYMENT, amount)
 
-@mode(expected_in_shift=False, failure_msg='Cannot begin a shift while one is ongoing.', help='begin a shift')
+@register_mode(expected_in_shift=False, if_shift_err='Cannot begin a shift while one is ongoing.', help='begin a shift')
 def begin():
     write_log(LogEvent.BEGIN, time.time())
 
-@mode(expected_in_shift=True, failure_msg='Cannot end a shift when none is ongoing.', help='end a shift')
+@register_mode(expected_in_shift=True, if_shift_err='Cannot end a shift when none is ongoing.', help='end a shift')
 def end():
     write_log(LogEvent.END, time.time())
 
-@mode(help='see the current status summary')
+@register_mode(help='see the current status summary')
 def status(report: LogReport):
     if report.in_shift:
         print(f'🕒 {datetime.timedelta(seconds=report.current_shift_duration)}')
@@ -215,27 +249,5 @@ def status(report: LogReport):
         else:
             print('💰 %.2f overpaid' % -report.outstanding_payment)
 
-DEFAULT_MODE = MODES[0]
-
 if __name__ == '__main__':
-    parser = ArgumentParser(description='A tool for managing your work hours and the money you made.')
-    group = parser.add_mutually_exclusive_group()
-
-    for mode in MODES:
-        if mode.arg_type is None:
-            group.add_argument(f'-{mode.name[0]}', f'--{mode.name}', action='store_true', help=mode.help)
-        else: 
-            group.add_argument(f'-{mode.name[0]}', f'--{mode.name}', type=mode.arg_type, help=mode.help)
-
-    args = parser.parse_args()
-
-    matching_mode = next((mode for mode in MODES if not not getattr(args, mode.name)), DEFAULT_MODE)
-    
-    try:
-        if matching_mode.arg_type is None:
-            matching_mode.runner()
-        else:
-            matching_mode.runner(getattr(args, matching_mode.name))
-    except ModeFailException as e:
-        print(str(e))
-        sys.exit(3)
+    sys.exit(app.run())
