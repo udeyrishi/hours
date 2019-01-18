@@ -14,13 +14,16 @@ LOG_FILE_PATH = os.path.join(os.path.expanduser('~'), '.hour_logger', 'log.csv')
 class ModeFailException(Exception):
     pass
 
-def prompt_until_success(question, parser_fn):
+def prompt_until_success(question, parser_fn, default=None):
     while True:
         print(question, end='')
         try:
             return parser_fn(input())
         except ValueError:
-            print('Not a valid response.')
+            if default is None:
+                print('Not a valid response.')
+            else:
+                return default
 
 def script_path():
     return os.path.realpath(__file__)
@@ -136,7 +139,7 @@ def read_sanitized_report(expected_in_shift=None, if_shift_err=None):
     return report
 
 def configure_as_new():
-    should_configure = prompt_until_success(question=f'Looks like you have never configured {script_name()} before. Would you like to do so now? [y/n] ', parser_fn=lambda x: strtobool(x) == 1)
+    should_configure = prompt_until_success(question=f'Looks like you have never configured {script_name()} before. Would you like to do so now? [Y/n] ', parser_fn=lambda x: strtobool(x) == 1, default=True)
     if not should_configure:
         raise ModeFailException(f'{script_name()} cannot run without configuring.')
 
@@ -194,7 +197,7 @@ class App:
 
 app = App()
 
-def register_mode(expected_in_shift=None, if_shift_err=None, help=None):
+def register_mode(expected_in_shift=None, if_shift_err=None, help=None, configure_if_needed=True):
     def _register_mode(mode_fn):
         class ModeParamData:
             def __init__(self, index, name, type):
@@ -210,8 +213,10 @@ def register_mode(expected_in_shift=None, if_shift_err=None, help=None):
         def wrapper(*args):
             if os.path.isfile(LOG_FILE_PATH):
                 report = read_sanitized_report(expected_in_shift, if_shift_err)
-            else:
+            elif configure_if_needed:
                 report = configure_as_new()
+            else:
+                report = None
 
             kwargs = dict()
             if cli_param_data is not None:
@@ -226,8 +231,13 @@ def register_mode(expected_in_shift=None, if_shift_err=None, help=None):
         return wrapper
     return _register_mode
 
-@register_mode(help='see the current status summary in a bitbar compatible syntax')
+@register_mode(help='see the current status summary in a bitbar compatible syntax', configure_if_needed=False)
 def bitbar(report: LogReport):
+    if report is None:
+        print(f'⚙️{script_name()} needs a one-time configuration.')
+        print(f'Configure | refresh=true bash="{script_path()}" param1=-i terminal=true')
+        return 0
+
     if report.in_shift:
         print(f'🕒 {report.current_shift_duration}')
     else:
@@ -235,9 +245,9 @@ def bitbar(report: LogReport):
 
     print('---')
     if report.in_shift:
-        print(f'End Shift | refresh=true bash="{script_path()}" param1=--end terminal=false')
+        print(f'End Shift | refresh=true bash="{script_path()}" param1=-e terminal=false')
     else:
-        print(f'Start Shift | refresh=true bash="{script_path()}" param1=--start terminal=false')
+        print(f'Start Shift | refresh=true bash="{script_path()}" param1=-s terminal=false')
 
     print(f'Open log | refresh=true bash="less" param1={LOG_FILE_PATH} terminal=true')
 
