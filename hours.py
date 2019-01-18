@@ -44,11 +44,15 @@ def positive_float(val):
     return num
 
 class LogReport:
-    def __init__(self, active_wage=None, current_shift_started_at=None, total_earned=0, total_paid=0):
+    def __init__(self, active_wage=None, current_shift_started_at=None, earned_past_shifts=0, total_paid=0):
         self.active_wage = active_wage
         self.current_shift_started_at = current_shift_started_at
-        self.total_earned = total_earned
+        self.earned_past_shifts = earned_past_shifts
         self.total_paid = total_paid
+
+    @property
+    def total_earned(self):
+        return self.earned_past_shifts + (((time.time() - self.current_shift_started_at)/60/60*self.active_wage) if self.current_shift_started_at is not None else 0)
 
     @property
     def outstanding_payment(self):
@@ -103,7 +107,7 @@ def prepare_report():
             if (seconds < 0):
                 raise ModeFailException(f'Log file at {LOG_FILE_PATH} is corrupted; A shift\'s duration cannot be negative. Try fixing or deleting it.')
             
-            report.total_earned += (seconds/60/60) * report.active_wage
+            report.earned_past_shifts += (seconds/60/60) * report.active_wage
         else:
             assert False, f'Support for new LogEvent {event.name} not added.'
 
@@ -266,7 +270,7 @@ def info(report: LogReport):
         print('🏠', end='')
 
     if report.has_outstanding_payment:
-        print(' | ')
+        print(' | ', end='')
         if report.outstanding_payment > 0:
             print(f'💰 {report.outstanding_payment:.2f} pending', end='')
         else:
