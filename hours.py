@@ -151,7 +151,7 @@ def mode(expected_in_shift=None, failure_msg=None):
     return _ensure_integrity
 
 @mode(expected_in_shift=False, failure_msg='Cannot change the wage while a shift is ongoing.')
-def change_wage(wage, report):
+def wage(wage, report):
     write_log(LogEvent.WAGE_SET, wage)
 
 @mode()
@@ -199,7 +199,7 @@ MODES = [
     Mode(name='begin', runner=begin, help='begin a shift'),
     Mode(name='end', runner=end, help='end a shift'),
     Mode(name='payment', runner=payment, arg_type=positive_float, help='add a received payment; must be non-negative'),
-    Mode(name='wage', runner=change_wage, arg_type=positive_float, help='update the hourly wage moving forward; must be non-negative'),
+    Mode(name='wage', runner=wage, arg_type=positive_float, help='update the hourly wage moving forward; must be non-negative'),
 ]
 
 DEFAULT_MODE = MODES[0]
