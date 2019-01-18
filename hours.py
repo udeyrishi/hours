@@ -39,6 +39,10 @@ def read_log():
             value = float(log[1])
             yield event, value
 
+def write_log(event, value):
+    with open(LOG_FILE_PATH, 'a') as log_file:
+        csv_writer = csv.writer(log_file)
+        csv_writer.writerow([event.name, value])
 
 def check_log_integrity(expected_in_shift=None, expected_in_shift_msg=None):
     if (expected_in_shift is None and expected_in_shift_msg is not None) or (expected_in_shift is not None and expected_in_shift_msg is None):
@@ -75,9 +79,7 @@ def configure_as_new():
     if not os.path.exists(os.path.dirname(LOG_FILE_PATH)):
         os.makedirs(os.path.dirname(LOG_FILE_PATH))
 
-    with open(LOG_FILE_PATH, 'w') as log_file:
-        csv_writer = csv.writer(log_file)
-        csv_writer.writerow([LogEvent.WAGE_SET.name, wage])
+    write_log(LogEvent.WAGE_SET, wage)
 
     print(f'Log log file created at: {LOG_FILE_PATH}.')
 
@@ -92,11 +94,6 @@ def ensure_integrity(expected_in_shift=None, msg=None):
 
         return wrapper
     return _ensure_integrity
-
-def write_log(event, value):
-    with open(LOG_FILE_PATH, 'a') as log_file:
-        csv_writer = csv.writer(log_file)
-        csv_writer.writerow([event.name, value])
 
 @ensure_integrity(expected_in_shift=False, msg='Cannot change the wage while a shift is ongoing.')
 def change_wage(wage):
