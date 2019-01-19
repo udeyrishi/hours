@@ -11,7 +11,7 @@ from math import isclose
 import sys
 import time
 
-LOG_FILE_PATH = os.path.join(os.path.expanduser('~'), '.hour_logger', 'log.csv')
+LOG_FILE_PATH = os.path.join(os.path.expanduser('~'), '.hours', 'log.csv')
 
 class ModeFailException(Exception):
     pass
@@ -177,7 +177,7 @@ class App:
         assert len(default_modes) == 1, 'Exactly 1 mode should be registered as the default'
         default_mode = default_modes[0]
 
-        parser = ArgumentParser(description='A tool for managing your work hours and the money you made.')
+        parser = ArgumentParser(description='A tool for managing your work hours and the money you make.')
         group = parser.add_mutually_exclusive_group()
 
         for mode in self.__registered_modes:
