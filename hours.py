@@ -238,7 +238,8 @@ def bitbar(report: LogReport):
         print(f'Start Shift | refresh=true bash="{script_path()}" param1=-s terminal=false')
 
     print('---')
-    print(f'Update wage | refresh=true bash="{script_path()}" param1=-w terminal=true')
+    if not report.in_shift:
+        print(f'Update wage | refresh=true bash="{script_path()}" param1=-w terminal=true')
     print(f'Receive payment | refresh=true bash="{script_path()}" param1=-p terminal=true')
 
     print(f'Open log | refresh=true bash="less" param1={LOG_FILE_PATH} terminal=true')
