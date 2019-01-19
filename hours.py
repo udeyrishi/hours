@@ -286,5 +286,9 @@ def start():
 def end():
     write_log(LogEvent.END, time.time())
 
+@app.register_mode(help='prints the path to the log file')
+def log():
+    print(LOG_FILE_PATH)
+
 if __name__ == '__main__':
     sys.exit(app.run())
