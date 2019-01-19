@@ -160,19 +160,20 @@ def configure_as_new():
 
 class App:
     class Mode:
-        def __init__(self, name, runner, help, default):
+        def __init__(self, name, runner, help, is_default):
             self.name = name
             self.runner = runner
             self.help = help
-            self.default = default
+            self.is_default = is_default
 
     def __init__(self):
         self.__registered_modes = []
 
     def run(self):
         assert len(self.__registered_modes) > 0, 'No modes were registered'
-        default_mode = next((mode for mode in self.__registered_modes if mode.default), None)
-        assert default_mode is not None, 'Exactly 1 mode should be registered as the default'
+        default_modes = [mode for mode in self.__registered_modes if mode.is_default]
+        assert len(default_modes) == 1, 'Exactly 1 mode should be registered as the default'
+        default_mode = default_modes[0]
 
         parser = ArgumentParser(description='A tool for managing your work hours and the money you made.')
         group = parser.add_mutually_exclusive_group()
@@ -182,8 +183,7 @@ class App:
 
         args = parser.parse_args()
 
-        # Use the 0th mode as the default
-        matching_mode = next((mode for mode in self.__registered_modes if not not getattr(args, mode.name)), default_mode)
+        matching_mode = next((mode for mode in self.__registered_modes if getattr(args, mode.name)), default_mode)
         try:
             matching_mode.runner()
             return 0
@@ -191,13 +191,13 @@ class App:
             print(str(e))
             return 3
 
-    def register_mode(self, expected_in_shift=None, if_shift_err=None, help=None, configure_if_needed=True, default=False):
-        def _register_mode(mode_fn):
+    def register_mode(self, expected_in_shift=None, if_shift_err=None, help=None, configure_if_needed=True, is_default=False):
+        def wrapper(mode_fn):
             report_param_name = next((param[0] for param in mode_fn.__annotations__.items() if param[1] == LogReport), None)
             num_other_params = len([param for param in mode_fn.__annotations__.items() if param[1] != LogReport])
             assert num_other_params == 0, 'mode functions can only optionally request the current report. Everything else must be gathered via user input for bitbar compatibility.'
 
-            def wrapper():
+            def mode_runner():
                 if os.path.isfile(LOG_FILE_PATH):
                     report = read_sanitized_report(expected_in_shift, if_shift_err)
                 elif configure_if_needed:
@@ -211,13 +211,13 @@ class App:
                 
                 mode_fn(**kwargs)
 
-            self.__registered_modes.append(App.Mode(name=mode_fn.__name__, runner=wrapper, help=help, default=default))
-            return wrapper
-        return _register_mode
+            self.__registered_modes.append(App.Mode(name=mode_fn.__name__, runner=mode_runner, help=help, is_default=is_default))
+            return mode_runner
+        return wrapper
 
 app = App()
 
-@app.register_mode(help='see the current status summary in a bitbar compatible syntax', configure_if_needed=False, default=True)
+@app.register_mode(help='see the current status summary in a bitbar compatible syntax', configure_if_needed=False, is_default=True)
 def bitbar(report: LogReport):
     if report is None:
         print(f'⚙️{script_name()} needs a one-time configuration.')
