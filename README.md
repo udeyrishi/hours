@@ -8,6 +8,8 @@
   - To register a new received payment, run `hours.py -p`
   - To see the current info, run `hours.py -i`
 
+  Run `hours.py -h` for full usage.
+
 ### Running
 
 `hours` is a standalone script that only depends on the Python stdlib. Tested on Python 3.7.2, might work with older versions.

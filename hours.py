@@ -2,7 +2,7 @@
 
 # Copyright (c) 2019 Udey Rishi. All rights reserved.
 
-from argparse import ArgumentParser, ArgumentTypeError
+from argparse import ArgumentParser
 import csv
 from enum import Enum, auto
 import os
