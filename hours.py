@@ -144,10 +144,11 @@ def read_sanitized_report(expected_in_shift=None, if_shift_err=None):
 
     return report
 
-def configure_as_new():
-    should_configure = prompt_until_success(question=f'Looks like you have never configured {script_name()} before. Would you like to do so now? [Y/n] ', parser_fn=lambda x: strtobool(x) == 1, default=True)
-    if not should_configure:
-        raise ModeFailException(f'{script_name()} cannot run without configuring.')
+def configure_as_new(ask_permission=True):
+    if ask_permission:
+        should_configure = prompt_until_success(question=f'Looks like you have never configured {script_name()} before. Would you like to do so now? [Y/n] ', parser_fn=lambda x: strtobool(x) == 1, default=True)
+        if not should_configure:
+            raise ModeFailException(f'{script_name()} cannot run without configuring.')
 
     wage = prompt_until_success(question='What is your hourly wage? ', parser_fn=positive_float)
 
@@ -155,9 +156,6 @@ def configure_as_new():
         os.makedirs(os.path.dirname(LOG_FILE_PATH))
 
     write_log(LogEvent.WAGE_SET, wage)
-
-    print(f'Log log file created at: {LOG_FILE_PATH}.')
-
     return LogReport(active_wage=wage)
 
 class App:
@@ -266,10 +264,14 @@ def info(report: LogReport):
             print(f'💰 {-report.outstanding_payment:.2f} overpaid', end='')
     print()
 
-@app.register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward')
-def wage():
-    wage = prompt_until_success(question='What is your new hourly wage? ', parser_fn=positive_float)
-    write_log(LogEvent.WAGE_SET, wage)
+@app.register_mode(expected_in_shift=False, if_shift_err='Cannot change the wage while a shift is ongoing.', help='update the hourly wage moving forward', configure_if_needed=False)
+def wage(report: LogReport):
+    if report is None:
+        # User is trying to use this mode as the first-time setup itself. Do not ask for wage 2x
+        configure_as_new(ask_permission=False)
+    else:
+        wage = prompt_until_success(question='What is your new hourly wage? ', parser_fn=positive_float)
+        write_log(LogEvent.WAGE_SET, wage)
 
 @app.register_mode(help='add a received payment')
 def payment():
