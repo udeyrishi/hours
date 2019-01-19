@@ -1,5 +1,7 @@
 #!/usr/local/bin/python3
 
+# Copyright (c) 2019 Udey Rishi. All rights reserved.
+
 from argparse import ArgumentParser, ArgumentTypeError
 import csv
 from enum import Enum, auto
